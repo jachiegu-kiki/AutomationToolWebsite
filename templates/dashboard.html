@@ -1,30 +1,33 @@
 {% extends "base.html" %}
 
-{% block title %}工具大廳 - KiKi 自動化平台{% endblock %}
+{% block title %}工具大廳 - XDF 效能平台{% endblock %}
 
 {% block content %}
-<div class="container">
-    <div class="text-center mb-5 fade-in">
-        <h2 class="fw-bold" style="color: var(--xdf-green);">🚀 歡迎回來，請選擇自動化工具</h2>
-        <p class="text-secondary">XDF 內部效率提升工具組</p>
+<div class="container py-3">
+    <div class="text-center mb-5">
+        <h2 class="fw-bold" style="color: var(--xdf-green);">🚀 自動化工具箱</h2>
+        <p class="text-muted">請選擇您要執行的業務流程</p>
     </div>
 
-    <div class="row justify-content-center">
+    <div class="row g-4 justify-content-center">
         {% for tool in workflows %}
-        <div class="col-md-6 col-lg-4 mb-4">
-            <div class="card h-100 border-0 tool-card fade-in" onclick="location.href='/tool/{{ tool.id }}'">
-                <div class="card-body p-4 text-center">
-                    <div class="icon-circle mb-3">
-                        {{ tool.icon }}
+        <div class="col-md-6 col-lg-4">
+            <a href="/tool/{{ tool.id }}" class="text-decoration-none">
+                <div class="card h-100 border-0 shadow-sm tool-card">
+                    <div class="card-body p-4 text-center">
+                        <div class="icon-box mb-3">
+                            {{ tool.icon }}
+                        </div>
+                        <h5 class="card-title fw-bold text-dark">{{ tool.title }}</h5>
+                        <p class="card-text text-muted small my-3 px-2">
+                            {{ tool.description }}
+                        </p>
+                        <span class="btn btn-outline-success rounded-pill btn-sm px-4">
+                            進入工具 <i class="bi bi-arrow-right ms-1"></i>
+                        </span>
                     </div>
-                    <h5 class="card-title fw-bold text-dark">{{ tool.title }}</h5>
-                    <p class="card-text text-muted small my-3">{{ tool.description }}</p>
-
-                    <button class="btn btn-outline-xdf w-100 rounded-pill mt-2">
-                        進入工具 <i class="bi bi-arrow-right ms-1"></i>
-                    </button>
                 </div>
-            </div>
+            </a>
         </div>
         {% endfor %}
     </div>
@@ -32,42 +35,26 @@
 
 <style>
     .tool-card {
-        background: white;
-        border-radius: 20px;
-        box-shadow: var(--card-shadow);
         transition: all 0.3s ease;
-        cursor: pointer;
-        border: 1px solid transparent;
+        background: #fff;
+        border-radius: 16px;
     }
-
     .tool-card:hover {
         transform: translateY(-8px);
+        box-shadow: 0 15px 30px rgba(0, 105, 95, 0.1) !important;
+        border: 1px solid var(--xdf-green);
+    }
+    .icon-box {
+        font-size: 3rem;
+        /* 如果 icon 是 emoji 則保持原色，如果是 class icon 可用 color: var(--xdf-green); */
+    }
+    .btn-outline-success {
+        color: var(--xdf-green);
         border-color: var(--xdf-green);
     }
-
-    .icon-circle {
-        width: 70px;
-        height: 70px;
-        background: #f0fdf4; /* 極淡的綠色背景 */
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0 auto;
-        font-size: 2rem;
-        color: var(--xdf-green);
-    }
-
-    .btn-outline-xdf {
-        border: 1px solid var(--xdf-green);
-        color: var(--xdf-green);
-        background: transparent;
-        transition: all 0.3s;
-    }
-
-    .tool-card:hover .btn-outline-xdf {
-        background: var(--xdf-green);
-        color: white;
+    .btn-outline-success:hover {
+        background-color: var(--xdf-green);
+        color: #fff;
     }
 </style>
 {% endblock %}
