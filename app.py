@@ -1,13 +1,11 @@
 import json
 import os
-import re  # [新增] 用於正則表達式處理檔名
+import re
 from datetime import datetime
 
 import requests
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
-# 移除原本的 secure_filename，我們自己寫一個支援中文的
-# from werkzeug.utils import secure_filename
 
 # === 引入 Utils ===
 from utils.excel_helper import get_raw_files, process_and_split
@@ -22,6 +20,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RAW_DATA_DIR = os.path.join(BASE_DIR, 'RawData')
 OUTPUT_DIR = os.path.join(BASE_DIR, 'Output')
 CONTACT_LIST_PATH = os.path.join(BASE_DIR, 'ContactList.xlsx')
+# 收件人緩存文件 (服務端持久化)
+RECIPIENT_CACHE_FILE = os.path.join(BASE_DIR, 'recipients_cache.json')
 
 os.makedirs(RAW_DATA_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -37,26 +37,16 @@ def allowed_file(filename):
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-# [核心修改] 自定義安全檔名函數，保留中文
 def safe_chinese_filename(filename):
     """
     保留中文字符、英數字、點、下劃線、中劃線。
-    過濾掉路徑遍歷符號 (../) 和其他特殊符號。
     """
-    # 1. 取出路徑最後一部分，防止 ../../etc/passwd 攻擊
     filename = os.path.basename(filename)
-
-    # 2. 使用正則表達式過濾
-    # \u4e00-\u9fa5 是中文字符範圍
-    # \w 包含英數字和下劃線
-    # 允許 . 和 -
     clean_name = re.sub(r'[^\w\u4e00-\u9fa5\.\-]', '', filename)
-
     return clean_name
 
 
 def load_workflows():
-    """讀取設定檔，用於生成首頁的選單"""
     try:
         with open(os.path.join(BASE_DIR, 'workflows.json'), 'r', encoding='utf-8') as f:
             return json.load(f)
@@ -64,7 +54,27 @@ def load_workflows():
         return []
 
 
-# ==================== 頁面路由 (View Routes) ====================
+# --- 服務端收件人緩存讀寫 ---
+def load_recipient_cache():
+    if not os.path.exists(RECIPIENT_CACHE_FILE):
+        return {}
+    try:
+        with open(RECIPIENT_CACHE_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except:
+        return {}
+
+
+def save_recipient_cache(data):
+    try:
+        with open(RECIPIENT_CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return True
+    except:
+        return False
+
+
+# ==================== 頁面路由 ====================
 
 @app.route('/')
 def index():
@@ -79,10 +89,8 @@ def tool_runner(tool_id):
 
     workflows = load_workflows()
     workflow = next((w for w in workflows if w['id'] == tool_id), None)
-
     if not workflow:
         return "找不到該工具配置", 404
-
     return render_template('tool_runner.html', workflow=workflow)
 
 
@@ -123,15 +131,12 @@ def proxy_request():
 
 # ==================== API 路由：Excel 工具專用 ====================
 
-# [新增] 檔案上傳路由
 @app.route('/api/excel/upload', methods=['POST'])
 def upload_file():
-    """處理 Excel 檔案上傳 (支援中文檔名與覆蓋檢查)"""
     if 'file' not in request.files:
         return jsonify({"status": "error", "message": "未檢測到檔案"})
 
     file = request.files['file']
-    # 獲取前端傳來的強制覆蓋標記 (字串 'true' 或 'false')
     force_overwrite = request.form.get('force') == 'true'
 
     if file.filename == '':
@@ -139,13 +144,10 @@ def upload_file():
 
     if file and allowed_file(file.filename):
         try:
-            # 使用自定義的中文安全檔名函數
             filename = safe_chinese_filename(file.filename)
             save_path = os.path.join(RAW_DATA_DIR, filename)
 
-            # [新增] 檢查檔案是否存在
             if os.path.exists(save_path) and not force_overwrite:
-                # 返回特殊狀態碼 'exists' 給前端判斷
                 return jsonify({
                     "status": "exists",
                     "message": f"檔案 [{filename}] 已存在，是否覆蓋？",
@@ -160,6 +162,30 @@ def upload_file():
             return jsonify({"status": "error", "message": f"保存失敗: {str(e)}"})
     else:
         return jsonify({"status": "error", "message": "僅支援 .xlsx 或 .xls 格式"})
+
+
+# [新增] 刪除檔案 API
+@app.route('/api/excel/delete', methods=['POST'])
+def delete_file():
+    """刪除 RawData 中的檔案"""
+    data = request.json
+    filename = data.get('filename')
+
+    if not filename:
+        return jsonify({"status": "error", "message": "未指定檔案名稱"})
+
+    # 安全檢查：確保路徑安全
+    safe_name = safe_chinese_filename(filename)
+    file_path = os.path.join(RAW_DATA_DIR, safe_name)
+
+    if os.path.exists(file_path):
+        try:
+            os.remove(file_path)
+            return jsonify({"status": "success", "message": f"已刪除檔案: {safe_name}"})
+        except Exception as e:
+            return jsonify({"status": "error", "message": f"刪除失敗: {str(e)}"})
+    else:
+        return jsonify({"status": "error", "message": "檔案不存在或已被刪除"})
 
 
 @app.route('/api/excel/files')
@@ -182,23 +208,49 @@ def split_files():
     return jsonify(result)
 
 
+# [修改] 預覽 API：整合服務端緩存
 @app.route('/api/excel/preview')
 def preview_emails():
-    return jsonify(generate_preview(OUTPUT_DIR, CONTACT_LIST_PATH))
+    # 1. 產生預設列表
+    original_list = generate_preview(OUTPUT_DIR, CONTACT_LIST_PATH)
+    # 2. 讀取緩存
+    cache = load_recipient_cache()
+    # 3. 覆蓋
+    for item in original_list:
+        line_name = item['line']
+        if line_name in cache:
+            item['recipients'] = cache[line_name]
+    return jsonify(original_list)
+
+
+# [新增] 保存收件人修改 API
+@app.route('/api/excel/save_recipient', methods=['POST'])
+def save_recipient():
+    data = request.json
+    line = data.get('line')
+    recipients = data.get('recipients', [])
+
+    if not line:
+        return jsonify({"status": "error", "message": "無效的業務條線"})
+
+    cache = load_recipient_cache()
+    cache[line] = recipients
+
+    if save_recipient_cache(cache):
+        return jsonify({"status": "success", "message": "已保存"})
+    else:
+        return jsonify({"status": "error", "message": "寫入文件失敗"})
 
 
 @app.route('/api/excel/send', methods=['POST'])
 def send_emails():
     data = request.json
-
-    # [新增] 获取 yyyymm，如果没传则默认为空字符串
     target_date = data.get('yyyymm', '')
-
     return jsonify(send_emails_batch(
         data['smtp_config'],
         data['dispatch_list'],
         OUTPUT_DIR,
-        target_date  # [新增] 将日期传给处理函数
+        target_date
     ))
 
 
