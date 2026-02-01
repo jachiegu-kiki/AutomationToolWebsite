@@ -87,7 +87,7 @@
     }
     .input-modified {
         border-left: 3px solid var(--xdf-orange);
-        background: #FFF8E1; /* 极淡的黄色背景提示已修改 */
+        background: #FFF8E1;
     }
 
     /* SMTP 区域更紧凑 */
@@ -103,6 +103,21 @@
         margin-bottom: 4px;
         font-weight: 500;
     }
+
+    /* 上傳區域樣式優化 */
+    .upload-area {
+        border: 2px dashed #E0E0E0;
+        border-radius: 6px;
+        padding: 15px;
+        text-align: center;
+        transition: all 0.3s;
+        background: #FAFAFA;
+        cursor: pointer;
+    }
+    .upload-area:hover {
+        border-color: var(--xdf-green);
+        background: #F0F9F8;
+    }
 </style>
 {% endblock %}
 
@@ -112,7 +127,7 @@
         <div class="col-lg-8">
             <div class="d-flex align-items-center mb-3">
                 <h4 class="fw-bold mb-0 text-dark">Excel 智能拆分分发</h4>
-                <span class="badge bg-warning text-dark ms-3" style="font-size: 11px;">PRO v2</span>
+                <span class="badge bg-warning text-dark ms-3" style="font-size: 11px;">PRO v2.2</span>
             </div>
 
             <div class="tool-card">
@@ -136,16 +151,49 @@
 
             <div class="tool-card">
                 <div class="card-header-xdf">
-                    <span class="header-title"><i class="bi bi-sliders me-2"></i>2. 拆分配置</span>
+                    <span class="header-title"><i class="bi bi-upload me-2"></i>2. 手动上传 (补充数据)</span>
+                </div>
+                <div class="p-4 bg-white">
+                    <div class="row g-3 align-items-center">
+                        <div class="col-md-9">
+                            <div class="input-group">
+                                <input type="file" class="form-control" id="excelUploader" accept=".xlsx, .xls">
+                            </div>
+                            <div class="form-text small text-muted ms-1">
+                                <i class="bi bi-info-circle me-1"></i>文件将上传至 RawData 目录，支持 .xlsx 格式，同名文件可覆盖。
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <button class="btn btn-outline-secondary w-100" id="btnUpload" onclick="uploadFile()">
+                                <i class="bi bi-cloud-upload me-1"></i> 上传文件
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tool-card">
+                <div class="card-header-xdf">
+                    <span class="header-title"><i class="bi bi-sliders me-2"></i>3. 拆分配置</span>
                     <button class="btn btn-sm btn-light border text-secondary" onclick="loadFiles()">
-                        <i class="bi bi-arrow-clockwise"></i> 刷新
+                        <i class="bi bi-arrow-clockwise"></i> 刷新列表
                     </button>
+                </div>
+
+                <div class="d-flex align-items-center px-3 py-2 bg-light border-bottom text-secondary fw-bold" style="font-size: 12px;">
+                    <div class="me-2 text-center" style="width: 1.5em;">#</div>
+
+                    <div class="me-3" style="width: 120px;">勾选拆分表格</div>
+
+                    <div class="flex-grow-1 me-2">输出工作表名 (Output Name)</div>
+
+                    <div style="width: 120px;">拆分字段 (Column)</div>
                 </div>
 
                 <div id="fileList" style="min-height: 120px; max-height: 350px; overflow-y: auto;">
                     <div class="d-flex flex-column align-items-center justify-content-center py-5 text-muted small">
                         <i class="bi bi-folder2-open display-6 mb-2 text-light-emphasis"></i>
-                        <p>请点击刷新按钮加载数据</p>
+                        <p>请点击刷新按钮或上传新文件</p>
                     </div>
                 </div>
 
@@ -158,13 +206,12 @@
 
             <div class="tool-card">
                 <div class="card-header-xdf">
-                    <span class="header-title"><i class="bi bi-envelope-check me-2"></i>3. 邮件分发</span>
+                    <span class="header-title"><i class="bi bi-envelope-check me-2"></i>4. 邮件分发</span>
                     <button class="btn btn-sm btn-outline-dark" onclick="loadPreview()">
                         <i class="bi bi-eye me-1"></i> 生成/重置预览
                     </button>
                 </div>
                 <div class="p-4 bg-white">
-
                     <div id="previewArea" class="mb-4">
                         <div class="alert alert-light border text-center text-muted small py-3">
                             暂无预览数据，请先执行拆分并点击生成预览。
@@ -226,7 +273,6 @@
         const term = document.getElementById('terminal');
         const div = document.createElement('div');
         div.className = `mb-1 log-${type}`;
-        // 获取 HH:MM:SS
         const time = new Date().toTimeString().split(' ')[0];
         div.innerHTML = `<span class="log-time">[${time}]</span> ${msg}`;
         term.appendChild(div);
@@ -251,15 +297,67 @@
             });
             const r = await res.json();
             addLog(r.message, r.status==='success'?'success':'error');
+            if(r.status === 'success') loadFiles();
         } catch(e) { addLog("请求失败: " + e.message, "error"); }
         btn.disabled = false;
         btn.innerHTML = originalHtml;
     }
 
-    // --- 2. 加载文件 ---
+    // --- 2. 手动上传 (含重複確認) ---
+    async function uploadFile(force = false) {
+        const fileInput = document.getElementById('excelUploader');
+        const file = fileInput.files[0];
+
+        if (!file) {
+            alert("请先选择要上传的 Excel 文件");
+            return;
+        }
+
+        const btn = document.getElementById('btnUpload');
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>处理中...';
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('force', force);
+
+        try {
+            if(!force) addLog(`准备上传文件: ${file.name}...`, 'warn');
+            const res = await fetch('/api/excel/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await res.json();
+
+            if (result.status === 'exists') {
+                const userConfirmed = confirm(result.message);
+                if (userConfirmed) {
+                    addLog(`用户确认覆盖文件: ${result.filename}`, 'warn');
+                    await uploadFile(true);
+                } else {
+                    addLog("用户取消上传", 'info');
+                }
+            }
+            else if (result.status === 'success') {
+                addLog(result.message, 'success');
+                if(!force) fileInput.value = '';
+                addLog("正在刷新文件列表...", 'info');
+                await loadFiles();
+            } else {
+                addLog(result.message, 'error');
+            }
+        } catch(e) {
+            addLog("上传异常: " + e.message, 'error');
+        }
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
+
+    // --- 3. 加载文件 ---
     async function loadFiles() {
         const container = document.getElementById('fileList');
-        container.innerHTML = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm text-secondary"></div> <span class="text-muted small ms-2">正在扫描...</span></div>';
+        container.innerHTML = '<div class="text-center py-5"><div class="spinner-border spinner-border-sm text-secondary"></div> <span class="text-muted small ms-2">正在扫描 RawData...</span></div>';
 
         try {
             const res = await fetch('/api/excel/files');
@@ -267,7 +365,7 @@
             container.innerHTML = "";
 
             if (Object.keys(data).length === 0) {
-                container.innerHTML = '<div class="p-4 text-center text-muted small">RawData 目录为空</div>';
+                container.innerHTML = '<div class="p-4 text-center text-muted small">RawData 目录为空，请执行同步或上传文件</div>';
                 return;
             }
 
@@ -281,9 +379,11 @@
                 // Sheet 列表
                 for (const [sName, info] of Object.entries(sheets)) {
                     const options = info.columns.map(c => `<option value="${c}" ${c===info.suggested_col?'selected':''}>${c}</option>`).join('');
+
+                    // 注意：此處的寬度與上方的 Header 標頭保持一致
                     container.innerHTML += `
                     <div class="d-flex align-items-center px-3 py-2 border-bottom bg-white sheet-row">
-                        <div class="form-check me-2">
+                        <div class="form-check me-2" style="width: 1.5em; text-align: center;">
                             <input type="checkbox" class="form-check-input sheet-check" data-file="${filename}" data-origin="${sName}" data-h="${info.header_idx}" checked>
                         </div>
                         <div class="text-truncate small fw-medium text-secondary me-3" style="width: 120px;" title="${sName}">${sName}</div>
@@ -296,14 +396,14 @@
                     </div>`;
                 }
             }
-            addLog("文件列表加载完毕", "success");
+            addLog("文件列表已更新", "success");
         } catch(e) {
             container.innerHTML = `<div class="p-3 text-danger small">加载失败: ${e.message}</div>`;
             addLog("扫描失败: " + e.message, "error");
         }
     }
 
-    // --- 3. 拆分 ---
+    // --- 4. 拆分 ---
     async function executeSplit() {
         const selection = {};
         const checked = document.querySelectorAll('.sheet-check:checked');
@@ -340,7 +440,7 @@
         btn.innerHTML = originalHtml;
     }
 
-    // --- 4. 预览与编辑 (核心逻辑) ---
+    // --- 5. 预览与编辑 ---
     let originalDispatch = [];
 
     async function loadPreview() {
@@ -369,12 +469,10 @@
                     <tbody>`;
 
             originalDispatch.forEach((item) => {
-                // 1. 读取 LocalStorage
                 const cacheKey = `xdf_recipients_${item.line}`;
                 const cached = localStorage.getItem(cacheKey);
                 const defaultVal = item.recipients.join(', ');
                 const displayVal = cached !== null ? cached : defaultVal;
-                // 标记修改样式
                 const modifiedClass = (cached !== null && cached !== defaultVal) ? 'input-modified' : '';
 
                 html += `
@@ -395,7 +493,6 @@
             html += '</tbody></table></div>';
             area.innerHTML = html;
 
-            // 启用发送按钮
             const btnSend = document.getElementById('btnSend');
             btnSend.disabled = false;
             btnSend.innerHTML = '<span class="fw-bold"><i class="bi bi-send-fill me-2"></i>确认发送邮件</span>';
@@ -407,7 +504,6 @@
         }
     }
 
-    // 保存编辑状态
     function handleRecipientChange(input) {
         const line = input.getAttribute('data-line');
         const value = input.value.trim();
@@ -416,11 +512,10 @@
         addLog(`已缓存 [${line}] 的收件人修改`, 'info');
     }
 
-    // --- 5. 发送 ---
+    // --- 6. 发送 ---
     async function executeDistribute() {
         if(!confirm('确认要立即发送邮件吗？\n请确保 SMTP 配置正确且收件人无误。')) return;
 
-        // 收集 SMTP
         const smtp = {
             server: document.getElementById('smtpS').value,
             port: document.getElementById('smtpP').value,
@@ -428,10 +523,8 @@
             password: document.getElementById('smtpW').value
         };
 
-        // 收集最新的收件人列表 (从 DOM 读取)
         const inputs = document.querySelectorAll('.input-invisible');
         const finalDispatchList = originalDispatch.map(item => {
-            // 找到对应行的 input
             const input = Array.from(inputs).find(i => i.getAttribute('data-line') === item.line);
             let recipientsList = [];
             if (input && input.value.trim() !== "") {
