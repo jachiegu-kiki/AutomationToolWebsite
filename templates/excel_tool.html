@@ -514,7 +514,15 @@
 
     // --- 6. 发送 ---
     async function executeDistribute() {
-        if(!confirm('确认要立即发送邮件吗？\n请确保 SMTP 配置正确且收件人无误。')) return;
+        // 1. 获取月份 (新增)
+        const yyyymm = document.getElementById('syncMonth').value;
+        if (!yyyymm) {
+            alert("请先在步骤 1 选择目标月份 (YYYY-MM)，用于邮件标题。");
+            // 如果想強制使用者必須選月份，這裡直接 return
+            return;
+        }
+
+        if(!confirm(`确认要立即发送邮件吗？\n目标月份: ${yyyymm}\n请确保 SMTP 配置正确且收件人无误。`)) return;
 
         const smtp = {
             server: document.getElementById('smtpS').value,
@@ -531,7 +539,7 @@
                 recipientsList = input.value.split(/[;,，]/).map(e => e.trim()).filter(e => e);
             }
             return {
-                line: item.line,
+                line: item.line, // 这里 'line' 即为 'department' (业务条线)
                 file: item.file,
                 recipients: recipientsList
             };
@@ -542,7 +550,7 @@
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>发送队列处理中...';
 
-        addLog("正在连接 SMTP 服务器...", "warn");
+        addLog(`正在连接 SMTP 服务器 (月份: ${yyyymm})...`, "warn");
 
         try {
             const res = await fetch('/api/excel/send', {
@@ -550,7 +558,8 @@
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     smtp_config: smtp,
-                    dispatch_list: finalDispatchList
+                    dispatch_list: finalDispatchList,
+                    yyyymm: yyyymm  // [新增] 追加月份参数
                 })
             });
             const result = await res.json();

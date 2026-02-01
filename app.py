@@ -190,7 +190,16 @@ def preview_emails():
 @app.route('/api/excel/send', methods=['POST'])
 def send_emails():
     data = request.json
-    return jsonify(send_emails_batch(data['smtp_config'], data['dispatch_list'], OUTPUT_DIR))
+
+    # [新增] 获取 yyyymm，如果没传则默认为空字符串
+    target_date = data.get('yyyymm', '')
+
+    return jsonify(send_emails_batch(
+        data['smtp_config'],
+        data['dispatch_list'],
+        OUTPUT_DIR,
+        target_date  # [新增] 将日期传给处理函数
+    ))
 
 
 if __name__ == '__main__':
