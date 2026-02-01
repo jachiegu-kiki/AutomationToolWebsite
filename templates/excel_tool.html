@@ -1,0 +1,359 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<style>
+    /* 工具區塊卡片 */
+    .tool-section {
+        background: white;
+        border-radius: 16px;
+        box-shadow: var(--card-shadow);
+        margin-bottom: 24px;
+        overflow: hidden;
+        border: 1px solid rgba(0,0,0,0.03);
+    }
+
+    /* 區塊標題 */
+    .section-header {
+        background: white;
+        padding: 20px 25px;
+        border-bottom: 1px solid #f0f0f0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .section-title {
+        font-weight: 700;
+        color: var(--xdf-green);
+        margin: 0;
+        font-size: 1.1rem;
+        display: flex;
+        align-items: center;
+    }
+
+    /* 終端機樣式 */
+    #terminal {
+        height: calc(100vh - 180px);
+        background: #1e293b; /* 深藍灰，比純黑更有質感 */
+        color: #e2e8f0;
+        padding: 20px;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 0.85rem;
+        border-radius: 16px;
+        overflow-y: auto;
+        box-shadow: inset 0 0 20px rgba(0,0,0,0.3);
+        border: 2px solid var(--xdf-green); /* 綠色邊框呼應品牌 */
+    }
+
+    .log-item { margin-bottom: 6px; border-left: 3px solid transparent; padding-left: 10px; }
+    .log-success { border-left-color: #2ecc71; color: #a2f3c3; }
+    .log-error { border-left-color: #e74c3c; color: #f5b7b1; }
+    .log-warn { border-left-color: var(--xdf-orange); color: #fcdfa8; }
+    .log-info { border-left-color: #3498db; color: #d6eaf8; }
+
+    /* 文件列表樣式 */
+    .file-item-header {
+        background-color: #f8fafc;
+        color: var(--xdf-green);
+        font-weight: 600;
+        border-left: 4px solid var(--xdf-green);
+    }
+
+    .sheet-row {
+        padding: 12px 25px;
+        border-bottom: 1px solid #f8f9fa;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        transition: background 0.2s;
+    }
+    .sheet-row:hover { background: #f1fcf8; } /* Hover 時顯示淡綠色 */
+
+    /* 徽章 */
+    .xdf-badge {
+        background: var(--xdf-orange);
+        color: white;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-left: 12px;
+        letter-spacing: 0.5px;
+    }
+
+    .form-control, .form-select {
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+        padding: 10px;
+    }
+    .form-control:focus, .form-select:focus {
+        border-color: var(--xdf-green);
+        box-shadow: 0 0 0 3px rgba(0, 105, 95, 0.1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 fade-in">
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="d-flex align-items-center mb-4">
+                <h2 class="h3 fw-bold mb-0" style="color: var(--xdf-green);">
+                    <i class="bi bi-file-earmark-spreadsheet-fill me-2"></i>Excel 智能拆分系統
+                </h2>
+                <span class="xdf-badge">XDF PRO v2.0</span>
+            </div>
+
+            <div class="tool-section">
+                <div class="section-header">
+                    <h3 class="section-title"><i class="bi bi-cloud-download me-2"></i>1. 數據同步 (Data Sync)</h3>
+                </div>
+                <div class="p-4 d-flex gap-3 align-items-center">
+                    <div class="flex-grow-1">
+                        <label class="text-secondary small mb-1">請選擇數據月份</label>
+                        <input type="month" id="syncMonth" class="form-control">
+                    </div>
+                    <div class="align-self-end">
+                        <button class="btn btn-xdf-primary" id="btnSync" onclick="triggerSync()">
+                            <i class="bi bi-arrow-repeat me-1"></i> 同步原始數據
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tool-section">
+                <div class="section-header">
+                    <h3 class="section-title"><i class="bi bi-sliders me-2"></i>2. 拆分配置 (Configuration)</h3>
+                    <button class="btn btn-sm btn-outline-secondary rounded-pill px-3" onclick="loadFiles()">
+                        <i class="bi bi-arrow-clockwise"></i> 刷新列表
+                    </button>
+                </div>
+
+                <div class="bg-light border-bottom py-2 px-4 d-flex text-muted small fw-bold text-uppercase">
+                    <div style="width: 30px;">#</div>
+                    <div style="flex:1">Sheet 來源</div>
+                    <div style="width:180px">輸出檔名 (Output Name)</div>
+                    <div style="width:160px">拆分欄位 (Column)</div>
+                </div>
+
+                <div id="fileList" style="min-height: 150px; max-height: 400px; overflow-y: auto;">
+                    <div class="p-5 text-center text-muted">
+                        <i class="bi bi-folder2-open display-4 d-block mb-3" style="color: #cbd5e1;"></i>
+                        <span class="small">暫無數據，請先點擊「刷新列表」</span>
+                    </div>
+                </div>
+
+                <div class="p-3 bg-white border-top">
+                    <button class="btn btn-xdf-primary w-100 py-2 fs-5" id="btnSplit" onclick="executeSplit()">
+                        <i class="bi bi-play-fill me-1"></i> 啟動自動化拆分引擎
+                    </button>
+                </div>
+            </div>
+
+            <div class="tool-section">
+                <div class="section-header">
+                    <h3 class="section-title"><i class="bi bi-envelope-paper-heart me-2"></i>3. 郵件分發 (Distribution)</h3>
+                </div>
+                <div class="p-4">
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-3">
+                            <label class="small text-muted mb-1">SMTP 伺服器</label>
+                            <input id="smtpS" class="form-control bg-light" value="smtp.xdf.cn">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="small text-muted mb-1">端口</label>
+                            <input id="smtpP" class="form-control bg-light" value="25">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small text-muted mb-1">發件帳號</label>
+                            <input id="smtpU" class="form-control bg-light" placeholder="example@xdf.cn">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small text-muted mb-1">授權碼 / 密碼</label>
+                            <input id="smtpW" type="password" class="form-control bg-light">
+                        </div>
+                    </div>
+
+                    <button class="btn btn-outline-dark w-100 mb-3 dashed-border rounded-pill" onclick="loadPreview()">
+                        <i class="bi bi-search me-1"></i> 核對收件人清單 (Generate Preview)
+                    </button>
+
+                    <div id="previewArea" class="mb-3"></div>
+
+                    <button class="btn btn-xdf-action w-100 py-3 shadow-sm rounded-pill" id="btnSend" onclick="executeDistribute()" disabled>
+                        <i class="bi bi-send-fill me-2"></i> 確認並分發郵件 (Confirm & Send)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <h6 class="text-secondary mb-3 fw-bold small text-uppercase d-flex justify-content-between">
+                <span><i class="bi bi-terminal-fill me-2"></i>System Log</span>
+                <span class="badge bg-secondary">Live</span>
+            </h6>
+            <div id="terminal">
+                <div class="log-item log-info opacity-50">System initialized...</div>
+                <div class="log-item log-info opacity-50">Waiting for user command...</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // --- 日志系統 (UI 優化版) ---
+    function addLog(msg, type='info'){
+        const term = document.getElementById('terminal');
+        const div = document.createElement('div');
+        div.className = `log-item log-${type}`;
+
+        const time = new Date().toLocaleTimeString('en-US', {hour12: false});
+        div.innerHTML = `<span class="opacity-50 me-2">[${time}]</span>${msg}`;
+
+        term.appendChild(div);
+        term.scrollTop = term.scrollHeight;
+    }
+
+    // --- 以下邏輯保持不變，直接復用原本的功能 ---
+    async function triggerSync() {
+        const date = document.getElementById('syncMonth').value;
+        if(!date) return alert("請選擇月份");
+
+        const btn = document.getElementById('btnSync');
+        const originText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>處理中...';
+
+        addLog(`正在請求 N8N 同步 ${date} 數據...`, "warn");
+
+        try {
+            const res = await fetch('/api/excel/sync', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ date })
+            });
+            const r = await res.json();
+            addLog(r.message, r.status==='success'?'success':'error');
+        } catch(e) { addLog("請求失敗: " + e.message, "error"); }
+
+        btn.disabled = false;
+        btn.innerHTML = originText;
+    }
+
+    async function loadFiles() {
+        addLog("正在掃描本地 RawData 目錄...", "warn");
+        try {
+            const res = await fetch('/api/excel/files');
+            const data = await res.json();
+            const container = document.getElementById('fileList');
+            container.innerHTML = "";
+
+            if (Object.keys(data).length === 0) {
+                container.innerHTML = '<div class="p-5 text-center text-muted">RawData 目錄為空</div>';
+                return;
+            }
+
+            for (const [filename, sheets] of Object.entries(data)) {
+                container.innerHTML += `<div class="p-2 px-4 file-item-header mt-2"><i class="bi bi-file-earmark-excel me-1"></i> ${filename}</div>`;
+                for (const [sName, info] of Object.entries(sheets)) {
+                    const options = info.columns.map(c => `<option value="${c}" ${c===info.suggested_col?'selected':''}>${c}</option>`).join('');
+                    container.innerHTML += `
+                    <div class="sheet-row">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input sheet-check" data-file="${filename}" data-origin="${sName}" data-h="${info.header_idx}" checked>
+                        </div>
+                        <div style="flex:1" class="small text-truncate fw-medium" title="${sName}">${sName}</div>
+                        <input type="text" class="form-control form-control-sm custom-name" value="${(filename.split('.')[0]+sName).substring(0,25)}" style="width:180px" placeholder="輸出檔名">
+                        <select class="form-select form-select-sm split-col" style="width:160px">${options}</select>
+                    </div>`;
+                }
+            }
+            addLog("文件載入成功，請確認拆分欄位。", "success");
+        } catch(e) { addLog("掃描失敗: " + e.message, "error"); }
+    }
+
+    async function executeSplit() {
+        const selection = {};
+        const checked = document.querySelectorAll('.sheet-check:checked');
+        if(checked.length === 0) return alert("未勾選任何 Sheet");
+
+        checked.forEach(cb => {
+            const f = cb.getAttribute('data-file'), s = cb.getAttribute('data-origin');
+            if(!selection[f]) selection[f] = {};
+            const row = cb.parentElement.parentElement;
+            selection[f][s] = {
+                custom: row.querySelector('.custom-name').value,
+                col: row.querySelector('.split-col').value,
+                h: parseInt(cb.getAttribute('data-h'))
+            };
+        });
+
+        const btn = document.getElementById('btnSplit');
+        const originText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>引擎運算中...';
+        addLog("正在執行後端 Pandas 拆分邏輯...", "warn");
+
+        try {
+            const res = await fetch('/api/excel/split', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ selection })
+            });
+            const result = await res.json();
+            addLog(result.message, result.status === 'success' ? 'success' : 'error');
+            if(result.logs) result.logs.forEach(l => addLog(' > ' + l, 'info'));
+        } catch(e) { addLog("拆分任務異常: " + e.message, "error"); }
+        btn.disabled = false;
+        btn.innerHTML = originText;
+    }
+
+    let currentDispatch = [];
+    async function loadPreview() {
+        addLog("正在讀取 Output 目錄並匹配 ContactList...");
+        try {
+            const res = await fetch('/api/excel/preview');
+            currentDispatch = await res.json();
+            const area = document.getElementById('previewArea');
+            if(currentDispatch.length === 0){
+                area.innerHTML = '<div class="alert alert-warning small">無生成文件，請先執行步驟 2 進行拆分。</div>';
+                return;
+            }
+
+            let html = '<div class="table-responsive" style="max-height:300px;"><table class="table table-sm x-small mt-2 table-hover"><thead><tr><th>條線</th><th>附件</th><th>收件人</th></tr></thead><tbody>';
+            currentDispatch.forEach(i => html += `<tr><td><span class="badge bg-secondary">${i.line}</span></td><td>${i.file}</td><td class="small text-muted text-break">${i.recipients.join(', ')}</td></tr>`);
+            area.innerHTML = html + '</tbody></table></div>';
+            document.getElementById('btnSend').disabled = false;
+            addLog(`預覽生成完畢，共 ${currentDispatch.length} 項任務。`, "success");
+        } catch(e) { addLog("預覽失敗: " + e.message, "error"); }
+    }
+
+    async function executeDistribute() {
+        const smtp = {
+            server: document.getElementById('smtpS').value,
+            port: document.getElementById('smtpP').value,
+            user: document.getElementById('smtpU').value,
+            password: document.getElementById('smtpW').value
+        };
+        const btn = document.getElementById('btnSend');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>發送中...';
+        addLog("正在建立 SMTP 連線並批量發送...", "warn");
+
+        try {
+            const res = await fetch('/api/excel/send', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ smtp_config: smtp, dispatch_list: currentDispatch })
+            });
+            const result = await res.json();
+            if(result.error) addLog(result.error, "error");
+            else addLog(`分發完畢！成功: ${result.success.length}, 失敗: ${result.failed.length}`, "success");
+        } catch(e) { addLog("發送失敗: " + e.message, "error"); }
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-send-fill me-2"></i> 確認並分發郵件 (Confirm & Send)';
+    }
+</script>
+{% endblock %}

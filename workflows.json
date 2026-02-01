@@ -1,9 +1,9 @@
 [
   {
     "id": "salary-pull",
-    "title": "cookie refresh",
-    "description": "輸入帳號與密碼，refresh自動化 cookie",
-    "icon": "🚀",
+    "title": "Cookie Refresh",
+    "description": "輸入帳號與密碼，自動化刷新 Cookie",
+    "icon": "🍪",
     "steps": [
       {
         "step_id": "step_init",
@@ -16,14 +16,12 @@
             "name": "account",
             "label": "帳號",
             "type": "text",
-            "placeholder": "請輸入帳號",
             "required": true
           },
           {
             "name": "password",
             "label": "密碼",
             "type": "password",
-            "placeholder": "請輸入密碼",
             "required": true
           }
         ]
@@ -39,17 +37,22 @@
             "name": "verificationCode",
             "label": "驗證碼",
             "type": "text",
-            "placeholder": "請輸入6位數驗證碼",
             "maxlength": 6,
-            "pattern": "\\d{6}",
             "required": true
           }
         ]
       }
     ],
     "success_message": {
-      "title": "cookie 已成功 refresh",
-      "content": ""
+      "title": "Cookie 已成功刷新",
+      "content": "系統已更新您的驗證狀態"
     }
+  },
+  {
+    "id": "excel-split",
+    "title": "Excel 智能拆分系統",
+    "description": "XDF 專版：自動化同步、拆分 Excel 並執行郵件分發",
+    "icon": "📊",
+    "steps": []
   }
 ]
