@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}工具選單 - KiKi的摸魚系統{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <h2 class="text-center mb-5" style="color: #4a5568; font-weight: 700;">🚀 可用自動化工具</h2>
+
+    <div class="row justify-content-center">
+        {% for tool in workflows %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 shadow-sm border-0 hover-lift" style="transition: transform 0.2s;">
+                <div class="card-body text-center p-4">
+                    <div style="font-size: 3em; margin-bottom: 15px;">{{ tool.icon }}</div>
+                    <h4 class="card-title fw-bold">{{ tool.title }}</h4>
+                    <p class="card-text text-muted my-3">{{ tool.description }}</p>
+                    <a href="/tool/{{ tool.id }}" class="btn btn-primary-gradient px-4 rounded-pill">
+                        進入工具
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        {% if not workflows %}
+        <div class="col-12 text-center">
+            <div class="alert alert-warning">
+                尚未設定任何流程，請檢查 workflows.json
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+    .hover-lift:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1) !important;
+    }
+</style>
+{% endblock %}

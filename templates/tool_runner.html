@@ -1,0 +1,307 @@
+{% extends "base.html" %}
+
+{% block title %}{{ workflow.title }} - KiKi的摸魚系統{% endblock %}
+
+{% block extra_css %}
+<style>
+    .step-card {
+        display: none;
+        animation: fadeIn 0.5s;
+    }
+
+    .step-card.active {
+        display: block;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* 狀態燈號 */
+    .status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 5px;
+    }
+    .status-dot.ok { background: #28a745; box-shadow: 0 0 5px #28a745; }
+    .status-dot.err { background: #dc3545; }
+
+    /* === 過期時間標籤 (Badge) === */
+    .expiry-badge {
+        display: none; /* 預設隱藏，查到資料後透過 JS 顯示 */
+        font-size: 0.85em;
+        padding: 5px 12px;
+        background-color: #f8f9fa;
+        color: #6c757d;
+        border-radius: 20px;
+        margin-right: 15px; /* 與 N8N 狀態燈的距離 */
+        border: 1px solid #dee2e6;
+        align-items: center;
+        transition: all 0.3s ease;
+    }
+
+    .expiry-badge.active {
+        display: inline-flex;
+    }
+
+    .expiry-badge.warning {
+        background-color: #fff3cd;
+        color: #856404;
+        border-color: #ffeeba;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content-card">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">{{ workflow.title }}</h1>
+
+        <div class="d-flex align-items-center">
+
+            <div id="cookie-status-display" class="expiry-badge">
+                <i class="bi bi-clock-history me-1"></i>
+                效期：<span id="cookie-date" class="fw-bold ms-1">查詢中...</span>
+            </div>
+
+            <div class="text-muted small d-flex align-items-center">
+                <span class="status-dot err" id="n8n-status"></span>
+                <span id="n8n-text">連線中...</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="steps-container"></div>
+
+    <div id="success-view" style="display: none; text-align: center; padding: 40px;">
+        <div style="font-size: 4em; margin-bottom: 20px;">✅</div>
+        <h3 class="text-success">{{ workflow.success_message.title }}</h3>
+
+        <div id="success-message-content">
+            <p class="lead mt-3">{{ workflow.success_message.content | safe }}</p>
+        </div>
+
+        <div class="alert alert-secondary mt-4 d-inline-block text-start">
+            <strong>本次執行參數：</strong>
+            <pre id="final-payload-display" class="mb-0 mt-2" style="font-size: 0.9em;"></pre>
+        </div>
+
+        <div class="mt-4">
+            <button class="btn btn-secondary" onclick="location.reload()">重新開始</button>
+        </div>
+    </div>
+
+    <div class="mt-5">
+        <h5 class="text-muted border-bottom pb-2">📋 操作日誌</h5>
+        <div class="log-container" id="log-box"
+             style="height: 200px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 0.9em;"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const workflow = {{ workflow | tojson }};
+    const steps = workflow.steps;
+    let currentStepIdx = 0;
+    let accumulatedData = {};
+
+    // ================= 初始化 =================
+    document.addEventListener('DOMContentLoaded', () => {
+        // 1. 基礎初始化
+        checkHealth();
+        renderStep(0);
+
+        // 確保 addLog 可用
+        if (typeof addLog === 'function') {
+            addLog('系統初始化完成', 'info');
+        }
+
+        // 2. ★ 強制執行 Cookie 檢查 ★
+        // 無論是 salary-pull 還是 cookie-refresh 頁面，都去檢查看看
+        console.log("準備觸發 Cookie 狀態檢查...");
+        checkCookieStatus();
+    });
+
+    // ================= Cookie 檢查邏輯 (核心修改) =================
+    async function checkCookieStatus() {
+        const display = document.getElementById('cookie-status-display');
+        const dateSpan = document.getElementById('cookie-date');
+
+        try {
+            // 呼叫 Flask Proxy -> N8N Webhook
+            const response = await fetch('/api/proxy', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    webhook_suffix: '/webhook/check-cookie-status',
+                    payload: {}
+                })
+            });
+
+            const result = await response.json();
+            console.log("Cookie Check Result:", result);
+
+            // === 【關鍵修正】對應您截圖中的雙層 data 結構 ===
+            let expiryData = null;
+
+            // 優先嘗試讀取雙層結構 (result.data.data.expiry)
+            if (result.data && result.data.data && result.data.data.expiry) {
+                expiryData = result.data.data.expiry;
+            }
+            // 如果沒有，嘗試讀取單層結構 (以防萬一)
+            else if (result.data && result.data.expiry) {
+                expiryData = result.data.expiry;
+            }
+
+            // 判斷是否取得有效時間
+            if (expiryData && expiryData !== "無法讀取" && !expiryData.includes("錯誤")) {
+                dateSpan.textContent = expiryData;
+                dateSpan.style.color = '#198754'; // 綠色文字
+
+                // 這行最重要：加上 active class 才會解除 display:none
+                display.classList.add('active');
+
+                if (typeof addLog === 'function') {
+                    addLog(`已讀取目前 Cookie 效期: ${expiryData}`, 'info');
+                }
+            } else {
+                console.warn("雖收到回應，但無有效過期時間，保持隱藏");
+            }
+
+        } catch (e) {
+            console.error("Cookie check failed:", e);
+        }
+    }
+
+    // ================= 渲染與提交邏輯 (保持不變) =================
+    function renderStep(index) {
+        const container = document.getElementById('steps-container');
+        container.innerHTML = '';
+        const step = steps[index];
+        let inputsHtml = '';
+
+        if (!step.inputs || step.inputs.length === 0) {
+            inputsHtml = `<div class="text-center mb-4"><div style="font-size: 3em;">👇</div><p class="text-muted">請確認無誤後點擊按鈕</p></div>`;
+        } else {
+            step.inputs.forEach(input => {
+                inputsHtml += `
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">${input.label}</label>
+                        <input type="${input.type}" class="form-control form-control-lg" id="input-${input.name}" name="${input.name}" placeholder="${input.placeholder || ''}" ${input.maxlength ? `maxlength="${input.maxlength}"` : ''} ${input.required ? 'required' : ''}>
+                    </div>`;
+            });
+        }
+
+        container.innerHTML = `
+            <div class="step-card active">
+                <h4 class="text-primary mb-3">${step.title}</h4>
+                <p class="text-muted mb-4">${step.description}</p>
+                <form id="step-form-${index}" onsubmit="handleStepSubmit(event, ${index})">
+                    <div class="row justify-content-center">
+                        <div class="col-md-8 col-lg-6">
+                            ${inputsHtml}
+                            <button type="submit" class="btn btn-primary-gradient w-100 mt-3 btn-lg" id="btn-${index}">${step.button_text}</button>
+                        </div>
+                    </div>
+                </form>
+            </div>`;
+
+        setTimeout(() => { const i = container.querySelector('input'); if(i) i.focus(); }, 100);
+    }
+
+    async function handleStepSubmit(e, index) {
+        e.preventDefault();
+        const step = steps[index];
+        const btn = document.getElementById(`btn-${index}`);
+        const formData = new FormData(e.target);
+        const currentData = Object.fromEntries(formData.entries());
+        accumulatedData = {...accumulatedData, ...currentData};
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="loading-spinner"></span> 處理中...';
+        addLog(`正在執行步驟: ${step.title}...`);
+
+        try {
+            const response = await fetch('/api/proxy', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ webhook_suffix: step.webhook_suffix, payload: accumulatedData })
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                addLog(`步驟 "${step.title}" 執行成功`, 'success');
+                if (index < steps.length - 1) {
+                    currentStepIdx++;
+                    renderStep(currentStepIdx);
+                } else {
+                    showSuccess(result.data);
+                }
+            } else {
+                addLog(`錯誤: ${result.message}`, 'error');
+                btn.disabled = false;
+                btn.innerHTML = step.button_text;
+            }
+        } catch (err) {
+            addLog(`連線錯誤: ${err.message}`, 'error');
+            btn.disabled = false;
+            btn.innerHTML = step.button_text;
+        }
+    }
+
+    function showSuccess(resultData) {
+        document.getElementById('steps-container').style.display = 'none';
+        document.getElementById('success-view').style.display = 'block';
+        document.getElementById('cookie-status-display').classList.remove('active'); // 隱藏舊的標籤
+
+        if (resultData && (resultData.cookie_expiry || (resultData.meta && resultData.meta.expiry))) {
+             const newTime = resultData.cookie_expiry || resultData.meta.expiry;
+             const msgContent = document.getElementById('success-message-content');
+             msgContent.innerHTML += `
+                <div class="mt-4 p-3 rounded" style="background-color: #d1e7dd; border: 1px solid #badbcc; color: #0f5132;">
+                    <h5 class="mb-2"><i class="bi bi-calendar-check me-2"></i>權限已展期</h5>
+                    <strong>新的過期時間：</strong> ${newTime}
+                </div>`;
+        }
+
+        const displayData = {...accumulatedData};
+        if (displayData.phoneTail) displayData.phoneTail = '****' + displayData.phoneTail.slice(-4);
+        if (displayData.password) displayData.password = '********';
+        document.getElementById('final-payload-display').textContent = JSON.stringify(displayData, null, 2);
+    }
+
+    function addLog(msg, type = 'info') {
+        const box = document.getElementById('log-box');
+        if (!box) return;
+        const time = new Date().toLocaleTimeString();
+        const color = type === 'error' ? 'red' : (type === 'success' ? 'green' : '#666');
+        box.innerHTML = `<div style="margin-bottom:5px; color:${color}">[${time}] ${msg}</div>` + box.innerHTML;
+    }
+
+    async function checkHealth() {
+        try {
+            const res = await fetch('/api/n8n/health');
+            const data = await res.json();
+            const dot = document.getElementById('n8n-status');
+            const txt = document.getElementById('n8n-text');
+            if (data.success) {
+                dot.className = 'status-dot ok';
+                txt.textContent = 'N8N 已連線';
+            } else {
+                dot.className = 'status-dot err';
+                txt.textContent = 'N8N 未連線';
+            }
+        } catch (e) { console.error(e); }
+    }
+</script>
+{% endblock %}

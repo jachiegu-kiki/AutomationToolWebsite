@@ -1,0 +1,55 @@
+[
+  {
+    "id": "salary-pull",
+    "title": "cookie refresh",
+    "description": "輸入帳號與密碼，refresh自動化 cookie",
+    "icon": "🚀",
+    "steps": [
+      {
+        "step_id": "step_init",
+        "title": "啟動 N8N 自動化流程",
+        "description": "請輸入您的員工資訊以發送驗證碼",
+        "webhook_suffix": "/webhook/start-process",
+        "button_text": "啟動",
+        "inputs": [
+          {
+            "name": "account",
+            "label": "帳號",
+            "type": "text",
+            "placeholder": "請輸入帳號",
+            "required": true
+          },
+          {
+            "name": "password",
+            "label": "密碼",
+            "type": "password",
+            "placeholder": "請輸入密碼",
+            "required": true
+          }
+        ]
+      },
+      {
+        "step_id": "step_verify",
+        "title": "身分驗證",
+        "description": "驗證碼已發送，請查看手機簡訊",
+        "webhook_suffix": "/webhook/verify-code",
+        "button_text": "確認",
+        "inputs": [
+          {
+            "name": "verificationCode",
+            "label": "驗證碼",
+            "type": "text",
+            "placeholder": "請輸入6位數驗證碼",
+            "maxlength": 6,
+            "pattern": "\\d{6}",
+            "required": true
+          }
+        ]
+      }
+    ],
+    "success_message": {
+      "title": "cookie 已成功 refresh",
+      "content": ""
+    }
+  }
+]

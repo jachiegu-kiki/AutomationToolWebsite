@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}KiKi的摸魚系統{% endblock %}</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css" rel="stylesheet">
+
+    <style>
+        /* ==================== 全局樣式 ==================== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', 'PingFang SC', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 導航欄增強樣式 */
+        .navbar {
+            background: rgba(255, 255, 255, 0.95) !important;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+            padding: 10px 0;
+        }
+
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 1.4em;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* 當前功能指示器 (麵包屑效果) */
+        .current-tool-indicator {
+            display: flex;
+            align-items: center;
+            font-size: 1.1em;
+            margin-left: 15px;
+            padding-left: 15px;
+            border-left: 2px solid #ddd;
+            height: 30px;
+        }
+
+        .tool-name {
+            color: #667eea;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        /* 按鈕與卡片樣式 */
+        .main-content {
+            flex: 1;
+            padding: 20px;
+        }
+        .footer {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 0;
+            text-align: center;
+            color: #666;
+            font-size: 0.9em;
+        }
+        .content-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            padding: 30px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .btn-primary-gradient {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: none;
+            color: white;
+            transition: all 0.3s ease;
+        }
+        .btn-primary-gradient:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.5);
+            color: white;
+        }
+
+        .btn-primary-gradient:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* 手機版適配 */
+        @media (max-width: 768px) {
+            .content-card {
+                padding: 20px;
+                margin: 10px;
+            }
+
+            .current-tool-indicator {
+                display: none; /* 手機版為了節省空間，導航欄只顯示 Logo */
+            }
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg sticky-top">
+    <div class="container-fluid">
+        <a class="navbar-brand ms-3" href="/">
+            🏢 KiKi的摸魚系統
+        </a>
+
+        {% if workflow %}
+        <div class="current-tool-indicator d-none d-md-flex">
+            <span class="text-muted"><i class="bi bi-chevron-right"></i></span>
+            <span class="tool-name">
+                <i class="bi bi-caret-right-fill me-1"></i>
+                {{ workflow.title }}
+            </span>
+        </div>
+        {% endif %}
+
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto me-3">
+                <li class="nav-item">
+                    <a class="nav-link {% if not workflow %}active fw-bold text-primary{% endif %}" href="/">
+                        <i class="bi bi-grid-fill me-1"></i>
+                        {% if workflow %}返回工具大廳{% else %}工具大廳{% endif %}
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<main class="main-content">
+    {% block content %}{% endblock %}
+</main>
+
+<footer class="footer">
+    <div class="container">
+        <p class="mb-0">&copy; 2025 KiKi的摸魚系統. All rights reserved.</p>
+    </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>
