@@ -66,20 +66,21 @@ def send_emails_batch(smtp_config, dispatch_list, output_dir, yyyymm=""):
             msg = MIMEMultipart()
 
             # [核心修改] 构造包含月份和条线的标题
-            # 例如: "2023-10 - 华北项目部 - 数据报告"
-            date_prefix = f"{yyyymm} " if yyyymm else ""
-            msg['Subject'] = f"{date_prefix}{department} - 业务数据报告"
+            msg['Subject'] = f"{yyyymm}【{department}】报完成及佣金"
 
             msg['From'] = smtp_config['user']
             msg['To'] = ", ".join(item['recipients'])
 
             # 邮件正文
-            msg.attach(MIMEText(f"""老师们好,
-                    {yyyymm}【{department}】业务部门数据出炉啦,请查阅;
-                         ***附件资料包含当财年及同期的明细数据(毛签、退费、报完成、佣金以及截止当月的预收存量)***
-                    此邮件由系统自动发送,如有疑问请联系相关人员。
-                谢谢!
-                广州前途财务部""", 'plain'))
+            body = f"""老师们好,
+        {yyyymm}【{department}】业务部门数据出炉啦,请查阅;
+             ***附件资料包含当财年及同期的明细数据(毛签、退费、报完成、佣金以及截止当月的预收存量)***
+        此邮件由系统自动发送,如有疑问请联系相关人员。
+    谢谢!
+    广州前途财务部"""
+
+            # 添加邮件正文
+            msg.attach(MIMEText(body, 'plain', 'utf-8'))
 
             # 附加 Excel 文件
             file_path = os.path.join(output_dir, item['file'])
