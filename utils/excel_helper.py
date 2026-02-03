@@ -6,8 +6,11 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def get_raw_files(raw_data_dir):
-    """扫描目录并嗅探每个 Sheet 潜在的‘条线’列及表头位置"""
+def get_raw_files(raw_data_dir, header_keyword="条线"):
+    """
+    扫描目录并嗅探每个 Sheet 潜在的‘拆分依据’列及表头位置
+    :param header_keyword: 用户指定的表头定位关键词 (默认为 "条线")
+    """
     files_info = {}
     if not os.path.exists(raw_data_dir): return files_info
 
@@ -15,27 +18,35 @@ def get_raw_files(raw_data_dir):
         if filename.endswith(".xlsx") and not filename.startswith("~$"):
             file_path = os.path.join(raw_data_dir, filename)
             try:
-                # [核心修正] 使用 with 上下文管理器，確保讀取後自動關閉檔案釋放資源
+                # 使用 with 上下文管理器，确保读取后自动关闭档案释放资源
                 with pd.ExcelFile(file_path) as xls:
                     sheets_data = {}
                     for sn in xls.sheet_names:
                         # 读取前20行进行表头嗅探
-                        # 注意：这里传入 xls 对象而不是路径，复用已打开的句柄
                         df_peek = pd.read_excel(xls, sheet_name=sn, header=None, nrows=20)
                         potential_cols = []
                         header_idx = 0
 
+                        found_header = False
                         for i, row in df_peek.iterrows():
-                            # 查找包含“条线”字样的单元格作为潜在表头
-                            if any("条线" in str(val) for val in row.values if pd.notna(val)):
+                            # 查找包含关键词的单元格作为潜在表头
+                            # 使用 str() 转换防止非字符串类型报错
+                            if any(header_keyword in str(val) for val in row.values if pd.notna(val)):
                                 potential_cols = [str(c).strip() for c in row.values if pd.notna(c)]
                                 header_idx = i
+                                found_header = True
                                 break
+
+                        # 如果没找到关键词，默认第一行为表头（兜底策略）
+                        if not found_header and not df_peek.empty:
+                            potential_cols = [str(c).strip() for c in df_peek.iloc[0].values if pd.notna(c)]
+                            header_idx = 0
 
                         sheets_data[sn] = {
                             "columns": potential_cols,
                             "header_idx": header_idx,
-                            "suggested_col": next((c for c in potential_cols if "条线" in c), "")
+                            # 尝试自动选中包含关键词的列
+                            "suggested_col": next((c for c in potential_cols if header_keyword in c), "")
                         }
                     files_info[filename] = sheets_data
             except Exception as e:
@@ -62,8 +73,6 @@ def process_and_split(selection, raw_data_dir, output_dir):
     for filename, config in selection.items():
         file_path = os.path.join(raw_data_dir, filename)
         try:
-            # [優化] 這裡雖然 pd.read_excel 通常會自動關閉，
-            # 但為了保險起見，也可以用 with 確保資源釋放，防止拆分失敗後檔案被鎖
             with pd.ExcelFile(file_path) as xls:
                 for origin_sheet, info in config.items():
                     # 使用动态探测到的表头行号读取数据
@@ -75,11 +84,21 @@ def process_and_split(selection, raw_data_dir, output_dir):
                         logs.append(f"错误: {filename}-{origin_sheet} 找不到列 [{target_col}]")
                         continue
 
+                    # 移除拆分列为空的行
                     df = df.dropna(subset=[target_col])
+
                     for line_val, group_df in df.groupby(target_col):
                         line_name = str(line_val).strip()
+                        if not line_name: continue # 跳过空名
+
                         if line_name not in data_buffer: data_buffer[line_name] = {}
-                        data_buffer[line_name][info['custom']] = group_df
+                        # 处理同名 Sheet 覆盖问题：如果多个源 Sheet 拆分出同一个 line_name
+                        # 这里简单处理为追加 Sheet 名后缀或直接使用 custom 名
+                        sheet_out_name = info['custom']
+                        # Excel Sheet 名最长31字符，需截断
+                        sheet_out_name = sheet_out_name[:31]
+
+                        data_buffer[line_name][sheet_out_name] = group_df
 
         except Exception as e:
             logs.append(f"处理 {filename} 异常: {str(e)}")

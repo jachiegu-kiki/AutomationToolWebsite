@@ -119,7 +119,6 @@
         background: #F0F9F8;
     }
 
-    /* [新增] 刪除按鈕樣式 */
     .btn-delete-file {
         color: #dc3545;
         cursor: pointer;
@@ -133,6 +132,20 @@
         opacity: 1;
         background-color: #ffe6e6;
     }
+
+    .template-vars {
+        font-size: 0.8em;
+        color: #666;
+        margin-top: 5px;
+    }
+    .var-tag {
+        background: #e9ecef;
+        padding: 2px 6px;
+        border-radius: 4px;
+        margin-right: 5px;
+        font-family: monospace;
+        cursor: pointer;
+    }
 </style>
 {% endblock %}
 
@@ -142,7 +155,7 @@
         <div class="col-lg-8">
             <div class="d-flex align-items-center mb-3">
                 <h4 class="fw-bold mb-0 text-dark">Excel 智能拆分分发</h4>
-                <span class="badge bg-warning text-dark ms-3" style="font-size: 11px;">PRO v2.4</span>
+                <span class="badge bg-warning text-dark ms-3" style="font-size: 11px;">PRO v3.0</span>
             </div>
 
             <div class="tool-card">
@@ -174,9 +187,6 @@
                             <div class="input-group">
                                 <input type="file" class="form-control" id="excelUploader" accept=".xlsx, .xls">
                             </div>
-                            <div class="form-text small text-muted ms-1">
-                                <i class="bi bi-info-circle me-1"></i>文件将上传至 RawData 目录，支持 .xlsx 格式，同名文件可覆盖。
-                            </div>
                         </div>
                         <div class="col-md-3">
                             <button class="btn btn-outline-secondary w-100" id="btnUpload" onclick="uploadFile()">
@@ -189,7 +199,13 @@
 
             <div class="tool-card">
                 <div class="card-header-xdf">
-                    <span class="header-title"><i class="bi bi-sliders me-2"></i>3. 拆分配置</span>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="header-title"><i class="bi bi-sliders me-2"></i>3. 拆分配置</span>
+                        <div class="input-group input-group-sm ms-3" style="width: 200px;">
+                            <span class="input-group-text bg-light">表头关键词</span>
+                            <input type="text" class="form-control" id="headerKeyword" value="条线" placeholder="如: 部门">
+                        </div>
+                    </div>
                     <button class="btn btn-sm btn-light border text-secondary" onclick="loadFiles()">
                         <i class="bi bi-arrow-clockwise"></i> 刷新列表
                     </button>
@@ -225,9 +241,24 @@
                     </button>
                 </div>
                 <div class="p-4 bg-white">
+
                     <div id="previewArea" class="mb-4">
                         <div class="alert alert-light border text-center text-muted small py-3">
                             暂无预览数据，请先执行拆分并点击生成预览。
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label-sm fw-bold mb-2">自定义邮件正文 (PlainText)</label>
+                        <textarea class="form-control" id="emailTemplate" rows="5" style="font-size: 13px;">老师们好,
+{month}【{line_name}】业务部门数据出炉啦,请查阅;
+     ***附件资料包含当财年及同期的明细数据(毛签、退费、报完成、佣金以及截止当月的预收存量)***
+此邮件由系统自动发送,如有疑问请联系相关人员。
+谢谢!</textarea>
+                        <div class="template-vars">
+                            可用变量:
+                            <span class="var-tag" onclick="insertVar('{line_name}')">{line_name}</span> 业务线/部门名
+                            <span class="var-tag" onclick="insertVar('{month}')">{month}</span> 选定的月份
                         </div>
                     </div>
 
@@ -236,7 +267,16 @@
                             <h6 class="fw-bold text-secondary mb-0" style="font-size: 13px;">
                                 <i class="bi bi-hdd-network me-2"></i>SMTP 服务器配置
                             </h6>
-                            <small class="ms-auto text-muted" style="font-size: 11px;">系统将自动记忆配置</small>
+                            <div class="ms-auto" style="width: 150px;">
+                                <select class="form-select form-select-sm" onchange="applySmtpPreset(this.value)">
+                                    <option value="">-- 快速预设 --</option>
+                                    <option value="office365">Office 365</option>
+                                    <option value="gmail">Gmail</option>
+                                    <option value="qq">QQ Mail</option>
+                                    <option value="163">163 Mail</option>
+                                    <option value="aliyun">Aliyun Ent</option>
+                                </select>
+                            </div>
                         </div>
 
                         <div class="row g-3">
@@ -250,7 +290,7 @@
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label-sm">发件账号</label>
-                                <input id="smtpU" class="form-control" placeholder="user@xdf.cn">
+                                <input id="smtpU" class="form-control" placeholder="user@domain.com">
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label-sm">授权码/密码</label>
@@ -292,16 +332,42 @@
         term.scrollTop = term.scrollHeight;
     }
 
+    // --- SMTP 预设 ---
+    const smtpPresets = {
+        'office365': {host: 'smtp.office365.com', port: '587'},
+        'gmail': {host: 'smtp.gmail.com', port: '587'},
+        'qq': {host: 'smtp.qq.com', port: '465'},
+        '163': {host: 'smtp.163.com', port: '465'},
+        'aliyun': {host: 'smtp.mxhichina.com', port: '465'}
+    };
+
+    function applySmtpPreset(val) {
+        if(smtpPresets[val]) {
+            document.getElementById('smtpS').value = smtpPresets[val].host;
+            document.getElementById('smtpP').value = smtpPresets[val].port;
+            addLog(`已应用 ${val} SMTP 设置`, 'info');
+        }
+    }
+
+    // --- 辅助：插入变量到 Textarea ---
+    function insertVar(val) {
+        const el = document.getElementById('emailTemplate');
+        const start = el.selectionStart;
+        const end = el.selectionEnd;
+        const text = el.value;
+        el.value = text.substring(0, start) + val + text.substring(end);
+        el.focus();
+        el.selectionStart = el.selectionEnd = start + val.length;
+    }
+
     // --- 1. 同步 ---
     async function triggerSync() {
         const date = document.getElementById('syncMonth').value;
         if(!date) return alert("请选择月份");
-
         const btn = document.getElementById('btnSync');
         const originalHtml = btn.innerHTML;
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>同步中...';
-
         try {
             const res = await fetch('/api/excel/sync', {
                 method: 'POST',
@@ -320,21 +386,14 @@
     async function uploadFile(force = false) {
         const fileInput = document.getElementById('excelUploader');
         const file = fileInput.files[0];
-
-        if (!file) {
-            alert("请先选择要上传的 Excel 文件");
-            return;
-        }
-
+        if (!file) { alert("请先选择要上传的 Excel 文件"); return; }
         const btn = document.getElementById('btnUpload');
         const originalHtml = btn.innerHTML;
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>处理中...';
-
         const formData = new FormData();
         formData.append('file', file);
         formData.append('force', force);
-
         try {
             if(!force) addLog(`准备上传文件: ${file.name}...`, 'warn');
             const res = await fetch('/api/excel/upload', {
@@ -342,38 +401,31 @@
                 body: formData
             });
             const result = await res.json();
-
             if (result.status === 'exists') {
-                const userConfirmed = confirm(result.message);
-                if (userConfirmed) {
-                    addLog(`用户确认覆盖文件: ${result.filename}`, 'warn');
-                    await uploadFile(true);
-                } else {
-                    addLog("用户取消上传", 'info');
-                }
-            }
-            else if (result.status === 'success') {
+                if (confirm(result.message)) await uploadFile(true);
+                else addLog("用户取消上传", 'info');
+            } else if (result.status === 'success') {
                 addLog(result.message, 'success');
                 if(!force) fileInput.value = '';
-                addLog("正在刷新文件列表...", 'info');
                 await loadFiles();
             } else {
                 addLog(result.message, 'error');
             }
-        } catch(e) {
-            addLog("上传异常: " + e.message, 'error');
-        }
+        } catch(e) { addLog("上传异常: " + e.message, 'error'); }
         btn.disabled = false;
         btn.innerHTML = originalHtml;
     }
 
-    // --- 3. 加载文件 (新增删除按钮逻辑) ---
+    // --- 3. 加载文件 (包含 Keyword 参数) ---
     async function loadFiles() {
         const container = document.getElementById('fileList');
+        const keyword = document.getElementById('headerKeyword').value.trim() || '条线'; // 获取用户关键词
+
         container.innerHTML = '<div class="text-center py-5"><div class="spinner-border spinner-border-sm text-secondary"></div> <span class="text-muted small ms-2">正在扫描 RawData...</span></div>';
 
         try {
-            const res = await fetch('/api/excel/files');
+            // 将 keyword 传给后端
+            const res = await fetch(`/api/excel/files?keyword=${encodeURIComponent(keyword)}`);
             const data = await res.json();
             container.innerHTML = "";
 
@@ -383,29 +435,29 @@
             }
 
             for (const [filename, sheets] of Object.entries(data)) {
-                // [核心修改] 文件头：增加删除按钮
-                // 使用 d-flex justify-content-between 確保檔名在左，刪除鈕在右
                 container.innerHTML += `
                     <div class="px-3 py-2 bg-secondary bg-opacity-10 border-bottom border-top mt-0 d-flex justify-content-between align-items-center">
                         <small class="fw-bold text-dark"><i class="bi bi-file-earmark-excel-fill text-success me-1"></i> ${filename}</small>
-
-                        <i class="bi bi-trash btn-delete-file"
-                           onclick="deleteFile('${filename}')"
-                           title="删除此文件"></i>
+                        <i class="bi bi-trash btn-delete-file" onclick="deleteFile('${filename}')" title="删除此文件"></i>
                     </div>`;
 
-                // Sheet 列表
                 for (const [sName, info] of Object.entries(sheets)) {
                     const options = info.columns.map(c => `<option value="${c}" ${c===info.suggested_col?'selected':''}>${c}</option>`).join('');
+
+                    // 标记行号信息
+                    const headerInfo = `<span class="badge bg-light text-secondary border ms-2 fw-normal" style="font-size:0.7em">Header Row: ${info.header_idx+1}</span>`;
 
                     container.innerHTML += `
                     <div class="d-flex align-items-center px-3 py-2 border-bottom bg-white sheet-row">
                         <div class="form-check me-2" style="width: 1.5em; text-align: center;">
                             <input type="checkbox" class="form-check-input sheet-check" data-file="${filename}" data-origin="${sName}" data-h="${info.header_idx}" checked>
                         </div>
-                        <div class="text-truncate small fw-medium text-secondary me-3" style="width: 120px;" title="${sName}">${sName}</div>
-                        <div class="flex-grow-1 me-2">
+                        <div class="text-truncate small fw-medium text-secondary me-3" style="width: 120px;" title="${sName}">
+                            ${sName}
+                        </div>
+                        <div class="flex-grow-1 me-2 d-flex align-items-center">
                             <input type="text" class="form-control form-control-sm custom-name" value="${(filename.split('.')[0]+sName).substring(0,25)}" placeholder="输出文件名">
+                            ${headerInfo}
                         </div>
                         <div style="width: 120px;">
                             <select class="form-select form-select-sm split-col">${options}</select>
@@ -414,18 +466,15 @@
                     </div>`;
                 }
             }
-            addLog("文件列表已更新", "success");
+            addLog(`文件列表已更新 (Header Key: ${keyword})`, "success");
         } catch(e) {
             container.innerHTML = `<div class="p-3 text-danger small">加载失败: ${e.message}</div>`;
             addLog("扫描失败: " + e.message, "error");
         }
     }
 
-    // [新增] 刪除檔案函數
     async function deleteFile(filename) {
         if (!confirm(`⚠️ 警告：\n确定要永久删除文件 "${filename}" 吗？`)) return;
-
-        addLog(`正在请求删除文件: ${filename}...`, 'warn');
         try {
             const res = await fetch('/api/excel/delete', {
                 method: 'POST',
@@ -433,17 +482,9 @@
                 body: JSON.stringify({ filename: filename })
             });
             const result = await res.json();
-
-            if (result.status === 'success') {
-                addLog(result.message, 'success');
-                // 刪除成功後，刷新列表
-                loadFiles();
-            } else {
-                addLog(result.message, 'error');
-            }
-        } catch(e) {
-            addLog("删除请求异常: " + e.message, 'error');
-        }
+            if (result.status === 'success') { addLog(result.message, 'success'); loadFiles(); }
+            else { addLog(result.message, 'error'); }
+        } catch(e) { addLog("删除异常: " + e.message, 'error'); }
     }
 
     // --- 4. 拆分 ---
@@ -451,7 +492,6 @@
         const selection = {};
         const checked = document.querySelectorAll('.sheet-check:checked');
         if(checked.length === 0) return alert("未勾选任何 Sheet");
-
         checked.forEach(cb => {
             const f = cb.getAttribute('data-file'), s = cb.getAttribute('data-origin');
             if(!selection[f]) selection[f] = {};
@@ -462,12 +502,10 @@
                 h: parseInt(cb.getAttribute('data-h'))
             };
         });
-
         const btn = document.getElementById('btnSplit');
         const originalHtml = btn.innerHTML;
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>处理中...';
-
         addLog("开始执行 Excel 拆分任务...", "warn");
         try {
             const res = await fetch('/api/excel/split', {
@@ -483,62 +521,36 @@
         btn.innerHTML = originalHtml;
     }
 
-    // --- 5. 预览与编辑 (服务端缓存版) ---
+    // --- 5. 预览与编辑 ---
     let originalDispatch = [];
-
     async function loadPreview() {
         const area = document.getElementById('previewArea');
         area.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm text-secondary"></div> <span class="ms-2 small text-muted">正在匹配收件人...</span></div>';
-
         try {
             const res = await fetch('/api/excel/preview');
             originalDispatch = await res.json();
-
             if(originalDispatch.length === 0){
                 area.innerHTML = '<div class="alert alert-warning small border-0 text-center">无生成文件，请先执行拆分。</div>';
                 return;
             }
-
             let html = `
             <div class="table-responsive border rounded bg-white">
                 <table class="table table-hover mb-0 table-preview">
-                    <thead>
-                        <tr>
-                            <th style="width:15%">业务条线</th>
-                            <th style="width:25%">附件名称</th>
-                            <th style="width:60%">收件人 (点击修改，自动保存)</th>
-                        </tr>
-                    </thead>
+                    <thead><tr><th style="width:15%">业务条线</th><th style="width:25%">附件名称</th><th style="width:60%">收件人 (点击修改)</th></tr></thead>
                     <tbody>`;
-
             originalDispatch.forEach((item) => {
-                const displayVal = item.recipients.join(', ');
-                html += `
-                <tr>
+                html += `<tr>
                     <td><span class="badge bg-secondary bg-opacity-25 text-dark border fw-normal">${item.line}</span></td>
                     <td class="text-muted">${item.file}</td>
-                    <td>
-                        <div class="d-flex align-items-center">
-                            <input type="text"
-                                class="input-invisible"
-                                value="${displayVal}"
-                                data-line="${item.line}"
-                                onchange="handleRecipientChange(this)"
-                                placeholder="请输入邮箱，多账号用逗号分隔">
-                            <span class="save-indicator small ms-2 text-success" style="display:none; width:50px;">Saved</span>
-                        </div>
-                    </td>
+                    <td><div class="d-flex align-items-center"><input type="text" class="input-invisible" value="${item.recipients.join(', ')}" data-line="${item.line}" onchange="handleRecipientChange(this)" placeholder="请输入邮箱，多账号用逗号分隔"><span class="save-indicator small ms-2 text-success" style="display:none; width:50px;">Saved</span></div></td>
                 </tr>`;
             });
-
             html += '</tbody></table></div>';
             area.innerHTML = html;
-
             const btnSend = document.getElementById('btnSend');
             btnSend.disabled = false;
             btnSend.innerHTML = '<span class="fw-bold"><i class="bi bi-send-fill me-2"></i>确认发送邮件</span>';
-
-            addLog(`预览生成完毕，共 ${originalDispatch.length} 项任务 (已同步服务端设置)。`, "success");
+            addLog(`预览生成完毕，共 ${originalDispatch.length} 项任务`, "success");
         } catch(e) {
             area.innerHTML = `<div class="text-danger p-3 small">加载失败: ${e.message}</div>`;
             addLog("预览失败: " + e.message, "error");
@@ -547,58 +559,34 @@
 
     async function handleRecipientChange(input) {
         const line = input.getAttribute('data-line');
-        const value = input.value.trim();
+        const recipientsList = input.value.trim().split(/[;,，]/).map(e => e.trim()).filter(e => e);
         const indicator = input.nextElementSibling;
-        const recipientsList = value.split(/[;,，]/).map(e => e.trim()).filter(e => e);
-
         indicator.style.display = 'inline-block';
-        indicator.textContent = 'Saving...';
-        indicator.classList.remove('text-success');
-        indicator.classList.add('text-muted');
-
+        indicator.textContent = 'Saving...'; indicator.classList.remove('text-success'); indicator.classList.add('text-muted');
         try {
             const res = await fetch('/api/excel/save_recipient', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    line: line,
-                    recipients: recipientsList
-                })
+                body: JSON.stringify({ line: line, recipients: recipientsList })
             });
             const r = await res.json();
-
             if (r.status === 'success') {
-                indicator.textContent = 'Saved';
-                indicator.classList.remove('text-muted');
-                indicator.classList.add('text-success');
+                indicator.textContent = 'Saved'; indicator.classList.remove('text-muted'); indicator.classList.add('text-success');
                 input.classList.add('input-modified');
-
                 const item = originalDispatch.find(i => i.line === line);
                 if(item) item.recipients = recipientsList;
-
-                addLog(`已保存 [${line}] 的收件人设置到服务器`, 'info');
                 setTimeout(() => { indicator.style.display = 'none'; }, 2000);
-            } else {
-                indicator.textContent = 'Error';
-                indicator.classList.add('text-danger');
-                alert("保存失败: " + r.message);
-            }
-        } catch (e) {
-            console.error(e);
-            indicator.textContent = 'Error';
-            alert("网络错误，保存失败");
-        }
+            } else { indicator.textContent = 'Error'; indicator.classList.add('text-danger'); alert("保存失败: " + r.message); }
+        } catch (e) { indicator.textContent = 'Error'; alert("网络错误"); }
     }
 
-    // --- 6. 发送 ---
+    // --- 6. 发送 (修改：包含 email_body) ---
     async function executeDistribute() {
         const yyyymm = document.getElementById('syncMonth').value;
-        if (!yyyymm) {
-            alert("请先在步骤 1 选择目标月份 (YYYY-MM)，用于邮件标题。");
-            return;
-        }
+        const emailTemplate = document.getElementById('emailTemplate').value; // 获取模版
 
-        if(!confirm(`确认要立即发送邮件吗？\n目标月份: ${yyyymm}\n请确保 SMTP 配置正确且收件人无误。`)) return;
+        if (!yyyymm) { alert("请先在步骤 1 选择目标月份"); return; }
+        if(!confirm(`确认要立即发送邮件吗？\n目标月份: ${yyyymm}`)) return;
 
         const smtp = {
             server: document.getElementById('smtpS').value,
@@ -606,21 +594,13 @@
             user: document.getElementById('smtpU').value,
             password: document.getElementById('smtpW').value
         };
-
-        const finalDispatchList = originalDispatch.map(item => {
-             return {
-                line: item.line,
-                file: item.file,
-                recipients: item.recipients
-            };
-        });
+        const finalDispatchList = originalDispatch.map(item => ({line: item.line, file: item.file, recipients: item.recipients}));
 
         const btn = document.getElementById('btnSend');
         const originalHtml = btn.innerHTML;
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>发送队列处理中...';
-
-        addLog(`正在连接 SMTP 服务器 (月份: ${yyyymm})...`, "warn");
+        addLog(`正在连接 SMTP 服务器...`, "warn");
 
         try {
             const res = await fetch('/api/excel/send', {
@@ -629,7 +609,8 @@
                 body: JSON.stringify({
                     smtp_config: smtp,
                     dispatch_list: finalDispatchList,
-                    yyyymm: yyyymm
+                    yyyymm: yyyymm,
+                    email_body: emailTemplate // 传递模版
                 })
             });
             const result = await res.json();
