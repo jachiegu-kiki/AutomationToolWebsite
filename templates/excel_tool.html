@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Excel 智能拆分系统 - GZQTcaiwu{% endblock %}
+{% block title %}Excel 智能拆分系统 - PRO Edition{% endblock %}
 {% block current_tool %}Excel 智能拆分分发{% endblock %}
 
 {% block extra_css %}
@@ -155,31 +155,12 @@
         <div class="col-lg-8">
             <div class="d-flex align-items-center mb-3">
                 <h4 class="fw-bold mb-0 text-dark">Excel 智能拆分分发</h4>
-                <span class="badge bg-warning text-dark ms-3" style="font-size: 11px;">PRO v3.0</span>
+                <span class="badge bg-warning text-dark ms-3" style="font-size: 11px;">PRO v3.1</span>
             </div>
 
             <div class="tool-card">
                 <div class="card-header-xdf">
-                    <span class="header-title"><i class="bi bi-cloud-arrow-down me-2"></i>1. 数据同步 (N8N)</span>
-                </div>
-                <div class="p-4 bg-white">
-                    <div class="row align-items-end g-3">
-                        <div class="col-md-5">
-                            <label class="form-label-sm">选择目标月份</label>
-                            <input type="month" id="syncMonth" class="form-control">
-                        </div>
-                        <div class="col-md-4">
-                            <button class="btn btn-xdf-primary w-100" id="btnSync" onclick="triggerSync()">
-                                <i class="bi bi-arrow-repeat me-1"></i> 同步原始数据
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="tool-card">
-                <div class="card-header-xdf">
-                    <span class="header-title"><i class="bi bi-upload me-2"></i>2. 手动上传 (补充数据)</span>
+                    <span class="header-title"><i class="bi bi-upload me-2"></i>1. 上传数据文件</span>
                 </div>
                 <div class="p-4 bg-white">
                     <div class="row g-3 align-items-center">
@@ -200,7 +181,7 @@
             <div class="tool-card">
                 <div class="card-header-xdf">
                     <div class="d-flex align-items-center gap-2">
-                        <span class="header-title"><i class="bi bi-sliders me-2"></i>3. 拆分配置</span>
+                        <span class="header-title"><i class="bi bi-sliders me-2"></i>2. 拆分配置</span>
                         <div class="input-group input-group-sm ms-3" style="width: 200px;">
                             <span class="input-group-text bg-light">表头关键词</span>
                             <input type="text" class="form-control" id="headerKeyword" value="条线" placeholder="如: 部门">
@@ -235,7 +216,7 @@
 
             <div class="tool-card">
                 <div class="card-header-xdf">
-                    <span class="header-title"><i class="bi bi-envelope-check me-2"></i>4. 邮件分发</span>
+                    <span class="header-title"><i class="bi bi-envelope-check me-2"></i>3. 邮件分发</span>
                     <button class="btn btn-sm btn-outline-dark" onclick="loadPreview()">
                         <i class="bi bi-eye me-1"></i> 生成/重置预览
                     </button>
@@ -249,53 +230,48 @@
                     </div>
 
                     <div class="mb-4">
-                        <label class="form-label-sm fw-bold mb-2">自定义邮件正文 (PlainText)</label>
+                        <div class="d-flex justify-content-between">
+                            <label class="form-label-sm fw-bold mb-2">邮件正文模版 (PlainText)</label>
+                        </div>
+
                         <textarea class="form-control" id="emailTemplate" rows="5" style="font-size: 13px;">老师们好,
-{month}【{line_name}】业务部门数据出炉啦,请查阅;
-     ***附件资料包含当财年及同期的明细数据(毛签、退费、报完成、佣金以及截止当月的预收存量)***
+【{line_name}】业务部门数据出炉啦,请查阅;
+     ***附件资料包含当财年及同期的明细数据***
 此邮件由系统自动发送,如有疑问请联系相关人员。
 谢谢!</textarea>
                         <div class="template-vars">
                             可用变量:
                             <span class="var-tag" onclick="insertVar('{line_name}')">{line_name}</span> 业务线/部门名
-                            <span class="var-tag" onclick="insertVar('{month}')">{month}</span> 选定的月份
                         </div>
                     </div>
 
                     <div class="smtp-box mb-4">
-                        <div class="d-flex align-items-center mb-3">
-                            <h6 class="fw-bold text-secondary mb-0" style="font-size: 13px;">
-                                <i class="bi bi-hdd-network me-2"></i>SMTP 服务器配置
-                            </h6>
-                            <div class="ms-auto" style="width: 150px;">
-                                <select class="form-select form-select-sm" onchange="applySmtpPreset(this.value)">
-                                    <option value="">-- 快速预设 --</option>
-                                    <option value="office365">Office 365</option>
-                                    <option value="gmail">Gmail</option>
-                                    <option value="qq">QQ Mail</option>
-                                    <option value="163">163 Mail</option>
-                                    <option value="aliyun">Aliyun Ent</option>
-                                </select>
-                            </div>
-                        </div>
+                        <h6 class="fw-bold text-secondary mb-3" style="font-size: 13px;">
+                            <i class="bi bi-hdd-network me-2"></i>发件服务配置
+                        </h6>
 
                         <div class="row g-3">
                             <div class="col-md-4">
-                                <label class="form-label-sm">服务器地址 (Host)</label>
-                                <input id="smtpS" class="form-control" value="smtp.xdf.cn" placeholder="smtp.example.com">
+                                <label class="form-label-sm">邮件服务商</label>
+                                <select class="form-select" id="smtpProvider">
+                                    <option value="gmail" selected>Google Gmail</option>
+                                    <option value="office365">Microsoft Office 365</option>
+                                    <option value="qq">QQ Mail</option>
+                                    <option value="163">163 NetEase</option>
+                                    <option value="aliyun">Aliyun Enterprise</option>
+                                </select>
                             </div>
-                            <div class="col-md-2">
-                                <label class="form-label-sm">端口 (Port)</label>
-                                <input id="smtpP" class="form-control" value="25">
+                            <div class="col-md-4">
+                                <label class="form-label-sm">发件账号 (Email)</label>
+                                <input id="smtpU" class="form-control" placeholder="example@gmail.com">
                             </div>
-                            <div class="col-md-3">
-                                <label class="form-label-sm">发件账号</label>
-                                <input id="smtpU" class="form-control" placeholder="user@domain.com">
+                            <div class="col-md-4">
+                                <label class="form-label-sm">授权码 / 密码</label>
+                                <input id="smtpW" type="password" class="form-control" placeholder="App Password">
                             </div>
-                            <div class="col-md-3">
-                                <label class="form-label-sm">授权码/密码</label>
-                                <input id="smtpW" type="password" class="form-control" placeholder="••••••">
-                            </div>
+                        </div>
+                        <div class="form-text mt-2 small text-muted">
+                            <i class="bi bi-info-circle me-1"></i>注意：Gmail 或 Outlook 请使用“应用专用密码 (App Password)”，不要使用登录密码。
                         </div>
                     </div>
 
@@ -311,7 +287,7 @@
                 <h6 class="fw-bold text-secondary mb-2" style="font-size: 12px; letter-spacing: 0.5px;">系统运行日志 (SYSTEM LOG)</h6>
                 <div id="terminal">
                     <div class="mb-1"><span class="log-time">[INIT]</span> 系统初始化完成...</div>
-                    <div class="mb-1"><span class="log-time">[READY]</span> 等待用户指令</div>
+                    <div class="mb-1"><span class="log-time">[READY]</span> 等待文件上传</div>
                 </div>
             </div>
         </div>
@@ -332,23 +308,6 @@
         term.scrollTop = term.scrollHeight;
     }
 
-    // --- SMTP 预设 ---
-    const smtpPresets = {
-        'office365': {host: 'smtp.office365.com', port: '587'},
-        'gmail': {host: 'smtp.gmail.com', port: '587'},
-        'qq': {host: 'smtp.qq.com', port: '465'},
-        '163': {host: 'smtp.163.com', port: '465'},
-        'aliyun': {host: 'smtp.mxhichina.com', port: '465'}
-    };
-
-    function applySmtpPreset(val) {
-        if(smtpPresets[val]) {
-            document.getElementById('smtpS').value = smtpPresets[val].host;
-            document.getElementById('smtpP').value = smtpPresets[val].port;
-            addLog(`已应用 ${val} SMTP 设置`, 'info');
-        }
-    }
-
     // --- 辅助：插入变量到 Textarea ---
     function insertVar(val) {
         const el = document.getElementById('emailTemplate');
@@ -360,29 +319,7 @@
         el.selectionStart = el.selectionEnd = start + val.length;
     }
 
-    // --- 1. 同步 ---
-    async function triggerSync() {
-        const date = document.getElementById('syncMonth').value;
-        if(!date) return alert("请选择月份");
-        const btn = document.getElementById('btnSync');
-        const originalHtml = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>同步中...';
-        try {
-            const res = await fetch('/api/excel/sync', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ date })
-            });
-            const r = await res.json();
-            addLog(r.message, r.status==='success'?'success':'error');
-            if(r.status === 'success') loadFiles();
-        } catch(e) { addLog("请求失败: " + e.message, "error"); }
-        btn.disabled = false;
-        btn.innerHTML = originalHtml;
-    }
-
-    // --- 2. 手动上传 ---
+    // --- 1. 上传文件 ---
     async function uploadFile(force = false) {
         const fileInput = document.getElementById('excelUploader');
         const file = fileInput.files[0];
@@ -416,21 +353,20 @@
         btn.innerHTML = originalHtml;
     }
 
-    // --- 3. 加载文件 (包含 Keyword 参数) ---
+    // --- 2. 加载文件 ---
     async function loadFiles() {
         const container = document.getElementById('fileList');
-        const keyword = document.getElementById('headerKeyword').value.trim() || '条线'; // 获取用户关键词
+        const keyword = document.getElementById('headerKeyword').value.trim() || '条线';
 
         container.innerHTML = '<div class="text-center py-5"><div class="spinner-border spinner-border-sm text-secondary"></div> <span class="text-muted small ms-2">正在扫描 RawData...</span></div>';
 
         try {
-            // 将 keyword 传给后端
             const res = await fetch(`/api/excel/files?keyword=${encodeURIComponent(keyword)}`);
             const data = await res.json();
             container.innerHTML = "";
 
             if (Object.keys(data).length === 0) {
-                container.innerHTML = '<div class="p-4 text-center text-muted small">RawData 目录为空，请执行同步或上传文件</div>';
+                container.innerHTML = '<div class="p-4 text-center text-muted small">RawData 目录为空，请上传文件</div>';
                 return;
             }
 
@@ -443,8 +379,6 @@
 
                 for (const [sName, info] of Object.entries(sheets)) {
                     const options = info.columns.map(c => `<option value="${c}" ${c===info.suggested_col?'selected':''}>${c}</option>`).join('');
-
-                    // 标记行号信息
                     const headerInfo = `<span class="badge bg-light text-secondary border ms-2 fw-normal" style="font-size:0.7em">Header Row: ${info.header_idx+1}</span>`;
 
                     container.innerHTML += `
@@ -466,7 +400,7 @@
                     </div>`;
                 }
             }
-            addLog(`文件列表已更新 (Header Key: ${keyword})`, "success");
+            addLog(`文件列表已更新`, "success");
         } catch(e) {
             container.innerHTML = `<div class="p-3 text-danger small">加载失败: ${e.message}</div>`;
             addLog("扫描失败: " + e.message, "error");
@@ -487,7 +421,7 @@
         } catch(e) { addLog("删除异常: " + e.message, 'error'); }
     }
 
-    // --- 4. 拆分 ---
+    // --- 3. 拆分 ---
     async function executeSplit() {
         const selection = {};
         const checked = document.querySelectorAll('.sheet-check:checked');
@@ -521,7 +455,7 @@
         btn.innerHTML = originalHtml;
     }
 
-    // --- 5. 预览与编辑 ---
+    // --- 4. 预览 ---
     let originalDispatch = [];
     async function loadPreview() {
         const area = document.getElementById('previewArea');
@@ -580,37 +514,43 @@
         } catch (e) { indicator.textContent = 'Error'; alert("网络错误"); }
     }
 
-    // --- 6. 发送 (修改：包含 email_body) ---
+    // --- 5. 发送 (更新：支持 Provider 参数) ---
     async function executeDistribute() {
-        const yyyymm = document.getElementById('syncMonth').value;
-        const emailTemplate = document.getElementById('emailTemplate').value; // 获取模版
+        // [新增] 手动输入月份框
+        const yyyymm = document.getElementById('emailMonth').value.trim();
+        const emailTemplate = document.getElementById('emailTemplate').value;
 
-        if (!yyyymm) { alert("请先在步骤 1 选择目标月份"); return; }
-        if(!confirm(`确认要立即发送邮件吗？\n目标月份: ${yyyymm}`)) return;
+        if(!confirm(`确认要立即发送邮件吗？\n${yyyymm ? "月份: " + yyyymm : "(未指定月份)"}`)) return;
 
-        const smtp = {
-            server: document.getElementById('smtpS').value,
-            port: document.getElementById('smtpP').value,
-            user: document.getElementById('smtpU').value,
-            password: document.getElementById('smtpW').value
-        };
+        // [修改] 获取 Provider 而非 Host/Port
+        const smtpProvider = document.getElementById('smtpProvider').value;
+        const smtpUser = document.getElementById('smtpU').value;
+        const smtpPass = document.getElementById('smtpW').value;
+
+        if(!smtpUser || !smtpPass) {
+             alert("请输入发件人账号和授权码");
+             return;
+        }
+
         const finalDispatchList = originalDispatch.map(item => ({line: item.line, file: item.file, recipients: item.recipients}));
 
         const btn = document.getElementById('btnSend');
         const originalHtml = btn.innerHTML;
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>发送队列处理中...';
-        addLog(`正在连接 SMTP 服务器...`, "warn");
+        addLog(`正在连接 ${smtpProvider} 服务器...`, "warn");
 
         try {
             const res = await fetch('/api/excel/send', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
-                    smtp_config: smtp,
+                    smtp_provider: smtpProvider, // 传递 Provider
+                    smtp_user: smtpUser,
+                    smtp_password: smtpPass,
                     dispatch_list: finalDispatchList,
                     yyyymm: yyyymm,
-                    email_body: emailTemplate // 传递模版
+                    email_body: emailTemplate
                 })
             });
             const result = await res.json();

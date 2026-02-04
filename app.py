@@ -8,8 +8,8 @@ from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 
 # === 引入 Utils ===
+# [修改] 移除了 n8n_helper
 from utils.excel_helper import get_raw_files, process_and_split
-from utils.n8n_helper import trigger_n8n_sync
 from utils.email_helper import generate_preview, send_emails_batch
 
 app = Flask(__name__)
@@ -25,10 +25,16 @@ RECIPIENT_CACHE_FILE = os.path.join(BASE_DIR, 'recipients_cache.json')
 os.makedirs(RAW_DATA_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-N8N_BASE_URL = os.getenv('N8N_URL', 'http://192.168.1.9:5678')
-N8N_EXCEL_SYNC_URL = f"{N8N_BASE_URL}/webhook/SplitData"
-
 ALLOWED_EXTENSIONS = {'xlsx', 'xls'}
+
+# [新增] 内置 SMTP 服务商配置 (架构师建议：将其硬编码在后端比前端更安全、更可控)
+SMTP_PROVIDERS = {
+    'gmail': {'host': 'smtp.gmail.com', 'port': 587},
+    'office365': {'host': 'smtp.office365.com', 'port': 587},
+    'qq': {'host': 'smtp.qq.com', 'port': 465},
+    '163': {'host': 'smtp.163.com', 'port': 465},
+    'aliyun': {'host': 'smtp.mxhichina.com', 'port': 465}
+}
 
 def allowed_file(filename):
     return '.' in filename and \
@@ -80,36 +86,6 @@ def tool_runner(tool_id):
         return "找不到該工具配置", 404
     return render_template('tool_runner.html', workflow=workflow)
 
-# ==================== API 路由：通用 ====================
-@app.route('/api/n8n/health')
-def n8n_health_check():
-    try:
-        response = requests.get(f'{N8N_BASE_URL}/webhook/healthz', timeout=2)
-        return jsonify({'success': response.status_code == 200})
-    except:
-        return jsonify({'success': False})
-
-@app.route('/api/proxy', methods=['POST'])
-def proxy_request():
-    try:
-        data = request.json
-        webhook_suffix = data.get('webhook_suffix')
-        payload = data.get('payload', {})
-        payload['timestamp'] = datetime.now().isoformat()
-        payload['source'] = 'generic-web-interface'
-        full_url = f"{N8N_BASE_URL}{webhook_suffix}"
-        response = requests.post(full_url, json=payload, timeout=30)
-        try:
-            resp_data = response.json()
-        except:
-            resp_data = {}
-        if response.status_code == 200:
-            return jsonify({'success': True, 'message': '執行成功', 'data': resp_data})
-        else:
-            return jsonify({'success': False, 'message': f'N8N 錯誤: {response.status_code}'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
-
 # ==================== API 路由：Excel 工具專用 ====================
 @app.route('/api/excel/upload', methods=['POST'])
 def upload_file():
@@ -154,16 +130,12 @@ def delete_file():
     else:
         return jsonify({"status": "error", "message": "檔案不存在或已被刪除"})
 
-# [修改] 增加 keyword 参数处理
 @app.route('/api/excel/files')
 def list_files():
-    keyword = request.args.get('keyword', '条线') # 默认为“条线”
+    keyword = request.args.get('keyword', '条线')
     return jsonify(get_raw_files(RAW_DATA_DIR, header_keyword=keyword))
 
-@app.route('/api/excel/sync', methods=['POST'])
-def sync_data():
-    date_val = request.json.get('date')
-    return jsonify(trigger_n8n_sync(N8N_EXCEL_SYNC_URL, date_val))
+# [修改] 移除了 sync_data 路由
 
 @app.route('/api/excel/split', methods=['POST'])
 def split_files():
@@ -197,19 +169,39 @@ def save_recipient():
     else:
         return jsonify({"status": "error", "message": "寫入文件失敗"})
 
-# [修改] 接收 email_body
+# [修改] 重构发送逻辑：支持 Provider 预设
 @app.route('/api/excel/send', methods=['POST'])
 def send_emails():
     data = request.json
     target_date = data.get('yyyymm', '')
-    email_body = data.get('email_body', '') # 获取自定义模版
+    email_body = data.get('email_body', '')
+
+    # 提取 SMTP 信息
+    provider_key = data.get('smtp_provider', 'gmail')
+    smtp_user = data.get('smtp_user')
+    smtp_password = data.get('smtp_password')
+
+    if not smtp_user or not smtp_password:
+        return jsonify({"error": "请输入完整的发件账号与密码"})
+
+    # 组装配置
+    provider_config = SMTP_PROVIDERS.get(provider_key)
+    if not provider_config:
+        return jsonify({"error": "不支持的邮件服务商"})
+
+    full_smtp_config = {
+        "server": provider_config['host'],
+        "port": provider_config['port'],
+        "user": smtp_user,
+        "password": smtp_password
+    }
 
     return jsonify(send_emails_batch(
-        data['smtp_config'],
+        full_smtp_config,
         data['dispatch_list'],
         OUTPUT_DIR,
         target_date,
-        body_template=email_body # 传递给 Helper
+        body_template=email_body
     ))
 
 if __name__ == '__main__':

@@ -1,54 +1,5 @@
 [
   {
-    "id": "salary-pull",
-    "title": "Cookie Refresh",
-    "description": "輸入帳號與密碼，自動化刷新 Cookie",
-    "icon": "🍪",
-    "steps": [
-      {
-        "step_id": "step_init",
-        "title": "啟動 N8N 自動化流程",
-        "description": "請輸入您的員工資訊以發送驗證碼",
-        "webhook_suffix": "/webhook/start-process",
-        "button_text": "啟動",
-        "inputs": [
-          {
-            "name": "account",
-            "label": "帳號",
-            "type": "text",
-            "required": true
-          },
-          {
-            "name": "password",
-            "label": "密碼",
-            "type": "password",
-            "required": true
-          }
-        ]
-      },
-      {
-        "step_id": "step_verify",
-        "title": "身分驗證",
-        "description": "驗證碼已發送，請查看手機簡訊",
-        "webhook_suffix": "/webhook/verify-code",
-        "button_text": "確認",
-        "inputs": [
-          {
-            "name": "verificationCode",
-            "label": "驗證碼",
-            "type": "text",
-            "maxlength": 6,
-            "required": true
-          }
-        ]
-      }
-    ],
-    "success_message": {
-      "title": "Cookie 已成功刷新",
-      "content": "系統已更新您的驗證狀態"
-    }
-  },
-  {
     "id": "excel-split",
     "title": "Excel 智能拆分系統",
     "description": "XDF 專版：自動化同步、拆分 Excel 並執行郵件分發",
