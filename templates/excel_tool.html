@@ -5,639 +5,490 @@
 
 {% block extra_css %}
 <style>
-    /* 模块容器 */
-    .tool-card {
-        background: #fff;
-        border-radius: 8px;
-        box-shadow: var(--shadow-sm);
-        border: 1px solid var(--border-color);
-        margin-bottom: 20px;
-        overflow: hidden;
-    }
+    .wizard-stepper { display:flex;align-items:flex-start;justify-content:center;padding:28px 0 20px;position:relative;max-width:860px;margin:0 auto 8px; }
+    .wizard-stepper::before { content:'';position:absolute;top:46px;left:15%;right:15%;height:2px;background:#E6E8EB;z-index:0; }
+    .step-node { display:flex;flex-direction:column;align-items:center;flex:1;position:relative;z-index:1;cursor:default;transition:opacity 0.3s; }
+    .step-circle { width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;border:2.5px solid #D1D5DB;background:#FFF;color:#9CA3AF;transition:all 0.4s cubic-bezier(0.34,1.56,0.64,1); }
+    .step-label { margin-top:10px;font-size:12px;color:#9CA3AF;font-weight:500;text-align:center;max-width:90px;line-height:1.4;transition:color 0.3s; }
+    .step-node.done .step-circle { border-color:var(--xdf-green);background:var(--xdf-green);color:#FFF;box-shadow:0 2px 8px rgba(0,105,95,0.25); }
+    .step-node.done .step-label { color:var(--xdf-green); }
+    .step-node.active .step-circle { border-color:var(--xdf-orange);background:#FFF;color:var(--xdf-orange);box-shadow:0 0 0 5px rgba(243,152,0,0.12),0 2px 8px rgba(243,152,0,0.2);transform:scale(1.1); }
+    .step-node.active .step-label { color:var(--xdf-orange);font-weight:700; }
+    .stepper-progress-line { position:absolute;top:46px;left:15%;height:2px;background:var(--xdf-green);z-index:0;transition:width 0.6s cubic-bezier(0.4,0,0.2,1); }
 
-    .card-header-xdf {
-        background: #fff;
-        padding: 16px 24px;
-        border-bottom: 1px solid #F0F0F0;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-    }
+    .step-panel { display:none;animation:stepSlideIn 0.45s cubic-bezier(0.16,1,0.3,1) forwards; }
+    .step-panel.active { display:block; }
+    @keyframes stepSlideIn { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
 
-    .header-title {
-        font-size: 15px;
-        font-weight: 700;
-        color: var(--xdf-green);
-        display: flex;
-        align-items: center;
-    }
+    .wizard-card { background:#FFF;border-radius:10px;border:1px solid var(--border-color);box-shadow:0 1px 4px rgba(0,0,0,0.04);overflow:hidden;max-width:960px;margin:0 auto; }
+    .wizard-card-header { padding:20px 28px;border-bottom:1px solid #F0F0F0;display:flex;align-items:center;gap:12px; }
+    .wizard-card-header .step-icon { width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0; }
+    .wizard-card-header h5 { margin:0;font-weight:700;font-size:16px;color:var(--text-primary); }
+    .wizard-card-header p { margin:2px 0 0;font-size:13px;color:var(--text-secondary); }
+    .wizard-card-body { padding:28px; }
 
-    /* 右侧终端机 */
-    #terminal {
-        height: calc(100vh - 160px);
-        background: #212529;
-        color: #E9ECEF;
-        padding: 16px;
-        font-family: 'SF Mono', 'Consolas', monospace;
-        font-size: 12px;
-        line-height: 1.6;
-        border-radius: 8px;
-        overflow-y: auto;
-    }
-    .log-time { color: #6C757D; margin-right: 8px; user-select: none; }
-    .log-info { color: #A5D6A7; }
-    .log-warn { color: #FFD54F; }
-    .log-error { color: #EF9A9A; }
-    .log-success { color: #69F0AE; font-weight: bold; }
+    .wizard-footer { max-width:960px;margin:20px auto 0;display:flex;justify-content:space-between;align-items:center; }
+    .btn-wizard-next { background:var(--xdf-green);color:#FFF;border:none;padding:10px 32px;border-radius:8px;font-weight:600;font-size:14px;display:inline-flex;align-items:center;gap:8px;transition:all 0.25s;box-shadow:0 2px 6px rgba(0,105,95,0.15); }
+    .btn-wizard-next:hover:not(:disabled) { background:#005a52;color:#FFF;box-shadow:0 4px 12px rgba(0,105,95,0.25);transform:translateY(-1px); }
+    .btn-wizard-next:disabled { opacity:0.5;cursor:not-allowed; }
+    .btn-wizard-back { background:transparent;color:var(--text-secondary);border:1px solid #D9D9D9;padding:10px 24px;border-radius:8px;font-weight:500;font-size:14px;display:inline-flex;align-items:center;gap:6px;transition:all 0.2s; }
+    .btn-wizard-back:hover { background:#F5F5F5;color:var(--text-primary); }
 
-    /* 表格优化 */
-    .table-preview th {
-        font-weight: 600;
-        color: var(--text-secondary);
-        background: #F8F9FA;
-        border-bottom: 2px solid #EEE;
-        font-size: 12px;
-        padding: 10px 16px;
-    }
-    .table-preview td {
-        vertical-align: middle;
-        padding: 8px 16px;
-        font-size: 13px;
-    }
+    .upload-zone { border:2px dashed #D9D9D9;border-radius:10px;padding:32px 20px;text-align:center;background:#FAFBFC;transition:all 0.25s;cursor:pointer; }
+    .upload-zone:hover,.upload-zone.dragover { border-color:var(--xdf-green);background:#F0FAF9; }
+    .upload-zone .upload-icon { font-size:2.2rem;color:#B0BEC5;margin-bottom:8px;transition:color 0.2s; }
+    .upload-zone:hover .upload-icon { color:var(--xdf-green); }
 
-    /* 内嵌式输入框 */
-    .input-invisible {
-        border: 1px solid transparent;
-        background: transparent;
-        padding: 4px 8px;
-        border-radius: 4px;
-        width: 100%;
-        color: #333;
-        font-size: 13px;
-        transition: all 0.2s;
-    }
-    .input-invisible:hover {
-        background: #F5F5F5;
-    }
-    .input-invisible:focus {
-        background: #FFF;
-        border-color: var(--xdf-orange);
-        outline: none;
-        box-shadow: 0 0 0 2px rgba(243, 152, 0, 0.1);
-    }
-    .input-modified {
-        border-left: 3px solid var(--xdf-orange);
-        background: #FFF8E1;
-    }
+    .file-chip { display:inline-flex;align-items:center;gap:8px;background:#F0F9F8;border:1px solid #C8E6C9;border-radius:6px;padding:6px 12px;font-size:13px;color:#2E7D32;font-weight:500; }
+    .file-chip .remove-chip { cursor:pointer;color:#C62828;opacity:0.5;transition:opacity 0.2s;font-size:14px; }
+    .file-chip .remove-chip:hover { opacity:1; }
 
-    /* SMTP 区域 */
-    .smtp-box {
-        background: #F9FAFB;
-        padding: 20px;
-        border-radius: 6px;
-        border: 1px dashed #E0E0E0;
-    }
-    .form-label-sm {
-        font-size: 12px;
-        color: #777;
-        margin-bottom: 4px;
-        font-weight: 500;
-    }
+    .ref-config-section { border:1px solid #E8E8E8;border-radius:8px;overflow:hidden;background:#FCFCFD; }
+    .ref-config-toggle { display:flex;align-items:center;justify-content:space-between;padding:12px 16px;cursor:pointer;user-select:none;transition:background 0.2s; }
+    .ref-config-toggle:hover { background:#F5F5F5; }
+    .ref-config-toggle .toggle-left { display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#555; }
+    .ref-config-body { display:none;padding:16px;border-top:1px solid #F0F0F0;background:#FFF; }
+    .ref-config-body.open { display:block; }
+    .ref-path-row { display:flex;align-items:center;gap:10px;margin-bottom:12px; }
+    .ref-path-row:last-of-type { margin-bottom:0; }
+    .ref-path-label { font-size:12px;font-weight:600;color:#888;width:42px;flex-shrink:0;text-align:right; }
+    .ref-path-input { flex:1;font-size:13px;padding:7px 12px;border:1px solid #DDD;border-radius:5px;background:#FAFAFA;transition:all 0.2s; }
+    .ref-path-input:focus { outline:none;border-color:var(--xdf-green);background:#FFF;box-shadow:0 0 0 2px rgba(0,105,95,0.08); }
+    .ref-status-dot { width:8px;height:8px;border-radius:50%;flex-shrink:0; }
+    .ref-status-dot.ok { background:#4CAF50;box-shadow:0 0 4px #4CAF50; }
+    .ref-status-dot.err { background:#E0E0E0; }
 
-    /* 上傳區域 */
-    .upload-area {
-        border: 2px dashed #E0E0E0;
-        border-radius: 6px;
-        padding: 15px;
-        text-align: center;
-        transition: all 0.3s;
-        background: #FAFAFA;
-        cursor: pointer;
-    }
-    .upload-area:hover {
-        border-color: var(--xdf-green);
-        background: #F0F9F8;
-    }
+    .mapping-status-banner { display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:6px;font-size:13px;margin-bottom:16px; }
+    .mapping-status-banner.ready { background:#E8F5E9;border:1px solid #C8E6C9;color:#2E7D32; }
+    .mapping-status-banner.empty { background:#FFF8E1;border:1px solid #FFECB3;color:#F57F17; }
+    .mapping-status-banner.none  { background:#F5F5F5;border:1px solid #E0E0E0;color:#999; }
 
-    /* [新增] 刪除按鈕樣式 */
-    .btn-delete-file {
-        color: #dc3545;
-        cursor: pointer;
-        font-size: 1.1em;
-        padding: 4px 8px;
-        border-radius: 4px;
-        transition: all 0.2s;
-        opacity: 0.7;
-    }
-    .btn-delete-file:hover {
-        opacity: 1;
-        background-color: #ffe6e6;
-    }
+    .config-table { width:100%;border-collapse:collapse; }
+    .config-table thead th { font-size:11px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:0.3px;padding:10px 12px;border-bottom:2px solid #F0F0F0;background:#FAFBFC;white-space:nowrap; }
+    .config-table tbody td { padding:8px 12px;border-bottom:1px solid #F5F5F5;vertical-align:middle;font-size:13px; }
+    .config-table .file-group-header td { background:#F8F9FA;font-weight:700;font-size:13px;color:var(--xdf-green);padding:8px 12px; }
+    .input-cell { border:1px solid transparent;background:transparent;padding:5px 8px;border-radius:5px;width:100%;font-size:13px;transition:all 0.2s; }
+    .input-cell:hover { background:#F8F8F8; }
+    .input-cell:focus { background:#FFF;border-color:var(--xdf-orange);outline:none;box-shadow:0 0 0 2px rgba(243,152,0,0.1); }
+
+    .preview-table { width:100%;border-collapse:collapse; }
+    .preview-table th { font-size:12px;font-weight:600;color:#777;padding:12px 16px;border-bottom:2px solid #EEE;background:#FAFBFC; }
+    .preview-table td { padding:10px 16px;border-bottom:1px solid #F5F5F5;vertical-align:middle;font-size:13px; }
+    .input-email { border:1px solid transparent;background:transparent;padding:5px 10px;border-radius:5px;width:100%;font-size:13px;transition:all 0.2s; }
+    .input-email:hover { background:#F5F5F5; }
+    .input-email:focus { background:#FFF;border-color:var(--xdf-green);outline:none;box-shadow:0 0 0 2px rgba(0,105,95,0.1); }
+    .input-email.modified { border-left:3px solid var(--xdf-orange);background:#FFFAF0; }
+
+    .smtp-config-grid { display:grid;grid-template-columns:1fr 100px 1fr 1fr;gap:16px; }
+    @media(max-width:768px) { .smtp-config-grid { grid-template-columns:1fr 1fr; } }
+    .smtp-field label { display:block;font-size:11px;font-weight:600;color:#999;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.3px; }
+
+    .log-drawer { max-width:960px;margin:24px auto 0; }
+    .log-toggle { display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:#999;cursor:pointer;padding:8px 0;user-select:none;transition:color 0.2s; }
+    .log-toggle:hover { color:#555; }
+    .log-toggle .chevron { transition:transform 0.3s;font-size:14px; }
+    .log-toggle.open .chevron { transform:rotate(180deg); }
+    #terminal { height:180px;background:#1A1D21;color:#E9ECEF;padding:14px 16px;font-family:'SF Mono','Consolas','Menlo',monospace;font-size:12px;line-height:1.7;border-radius:8px;overflow-y:auto;display:none; }
+    #terminal.open { display:block; }
+    .log-time{color:#6C757D;margin-right:8px;user-select:none;} .log-info{color:#A5D6A7;} .log-warn{color:#FFD54F;} .log-error{color:#EF9A9A;} .log-success{color:#69F0AE;font-weight:bold;}
+
+    .success-view { text-align:center;padding:60px 20px;max-width:600px;margin:0 auto; }
+    .success-view .check-anim { width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#00C853,#00695F);display:flex;align-items:center;justify-content:center;margin:0 auto 24px;animation:popIn 0.5s cubic-bezier(0.34,1.56,0.64,1); }
+    @keyframes popIn { from{transform:scale(0);opacity:0} to{transform:scale(1);opacity:1} }
+    .success-view .check-anim i { font-size:36px;color:#FFF; }
+    .spinner-inline { display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,0.3);border-top-color:#FFF;border-radius:50%;animation:spin 0.6s linear infinite; }
+    .spinner-dark { display:inline-block;width:14px;height:14px;border:2px solid rgba(0,0,0,0.1);border-top-color:#666;border-radius:50%;animation:spin 0.6s linear infinite; }
+    @keyframes spin { to{transform:rotate(360deg)} }
+    .empty-state { padding:40px 20px;text-align:center;color:#B0BEC5; }
+    .empty-state i { font-size:2.5rem;margin-bottom:12px;display:block; }
+
+    /* 分组选择下拉 */
+    .group-type-select { font-size:12px;height:34px;border-color:#E0E0E0;color:#555; }
+    .group-type-select option[value=""] { color:#AAA; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid px-4">
-    <div class="row g-4">
-        <div class="col-lg-8">
-            <div class="d-flex align-items-center mb-3">
-                <h4 class="fw-bold mb-0 text-dark">Excel 智能拆分分发</h4>
-                <span class="badge bg-warning text-dark ms-3" style="font-size: 11px;">PRO v2.4</span>
+<div class="container px-4">
+    <div class="wizard-stepper">
+        <div class="stepper-progress-line" id="stepperLine" style="width:0%;"></div>
+        <div class="step-node active"><div class="step-circle">1</div><div class="step-label">数据准备</div></div>
+        <div class="step-node"><div class="step-circle">2</div><div class="step-label">拆分配置</div></div>
+        <div class="step-node"><div class="step-circle">3</div><div class="step-label">邮件预览</div></div>
+        <div class="step-node"><div class="step-circle">4</div><div class="step-label">SMTP & 发送</div></div>
+        <div class="step-node"><div class="step-circle">5</div><div class="step-label">完成</div></div>
+    </div>
+
+    <!-- STEP 0 -->
+    <div class="step-panel active" id="panel-0">
+        <div class="wizard-card">
+            <div class="wizard-card-header">
+                <div class="step-icon" style="background:#E8F5E9;color:#2E7D32;"><i class="bi bi-cloud-arrow-down-fill"></i></div>
+                <div><h5>数据准备</h5><p>同步 N8N 原始数据、上传补充文件、配置分组参照</p></div>
             </div>
-
-            <div class="tool-card">
-                <div class="card-header-xdf">
-                    <span class="header-title"><i class="bi bi-cloud-arrow-down me-2"></i>1. 数据同步 (N8N)</span>
-                </div>
-                <div class="p-4 bg-white">
-                    <div class="row align-items-end g-3">
-                        <div class="col-md-5">
-                            <label class="form-label-sm">选择目标月份</label>
-                            <input type="month" id="syncMonth" class="form-control">
-                        </div>
-                        <div class="col-md-4">
-                            <button class="btn btn-xdf-primary w-100" id="btnSync" onclick="triggerSync()">
-                                <i class="bi bi-arrow-repeat me-1"></i> 同步原始数据
-                            </button>
-                        </div>
+            <div class="wizard-card-body">
+                <div class="mb-4">
+                    <label class="form-label fw-bold" style="font-size:13px;color:#555;"><i class="bi bi-calendar3 me-1"></i>目标月份 <span class="text-danger">*</span></label>
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-4"><input type="month" id="syncMonth" class="form-control" required></div>
+                        <div class="col-md-3"><button class="btn btn-xdf-primary w-100" id="btnSync" onclick="triggerSync()"><i class="bi bi-arrow-repeat me-1"></i> 同步数据</button></div>
                     </div>
+                    <div class="form-text small text-muted mt-2"><i class="bi bi-exclamation-triangle text-warning me-1"></i>同步将<strong>清空 RawData</strong> 后触发 N8N 拉取该月数据</div>
                 </div>
-            </div>
+                <hr class="my-4" style="border-color:#F0F0F0;">
+                <label class="form-label fw-bold" style="font-size:13px;color:#555;"><i class="bi bi-paperclip me-1"></i>手动上传补充文件 <span class="text-muted fw-normal">(可选)</span></label>
+                <div class="upload-zone" onclick="document.getElementById('excelUploader').click()" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="handleDrop(event)">
+                    <input type="file" id="excelUploader" accept=".xlsx,.xls" style="display:none" onchange="uploadFile()">
+                    <div class="upload-icon"><i class="bi bi-file-earmark-arrow-up"></i></div>
+                    <div style="font-size:14px;color:#666;font-weight:500;">拖拽或点击上传</div>
+                    <div style="font-size:12px;color:#AAA;margin-top:4px;">支持 .xlsx / .xls</div>
+                </div>
+                <div id="uploadedFiles" class="mt-3 d-flex flex-wrap gap-2"></div>
+                <hr class="my-4" style="border-color:#F0F0F0;">
 
-            <div class="tool-card">
-                <div class="card-header-xdf">
-                    <span class="header-title"><i class="bi bi-upload me-2"></i>2. 手动上传 (补充数据)</span>
-                </div>
-                <div class="p-4 bg-white">
-                    <div class="row g-3 align-items-center">
-                        <div class="col-md-9">
-                            <div class="input-group">
-                                <input type="file" class="form-control" id="excelUploader" accept=".xlsx, .xls">
-                            </div>
-                            <div class="form-text small text-muted ms-1">
-                                <i class="bi bi-info-circle me-1"></i>文件将上传至 RawData 目录，支持 .xlsx 格式，同名文件可覆盖。
-                            </div>
+                <!-- 分组参照配置 -->
+                <div class="ref-config-section">
+                    <div class="ref-config-toggle" onclick="toggleRefConfig()">
+                        <div class="toggle-left">
+                            <i class="bi bi-diagram-3"></i> 分组参照配置
+                            <span id="refStatusBadge" class="badge bg-secondary bg-opacity-25 text-dark" style="font-size:10px;">未配置</span>
                         </div>
-                        <div class="col-md-3">
-                            <button class="btn btn-outline-secondary w-100" id="btnUpload" onclick="uploadFile()">
-                                <i class="bi bi-cloud-upload me-1"></i> 上传文件
-                            </button>
-                        </div>
+                        <i class="bi bi-chevron-down" id="refChevron" style="font-size:12px;color:#AAA;transition:transform 0.3s;"></i>
                     </div>
-                </div>
-            </div>
-
-            <div class="tool-card">
-                <div class="card-header-xdf">
-                    <span class="header-title"><i class="bi bi-sliders me-2"></i>3. 拆分配置</span>
-                    <button class="btn btn-sm btn-light border text-secondary" onclick="loadFiles()">
-                        <i class="bi bi-arrow-clockwise"></i> 刷新列表
-                    </button>
-                </div>
-
-                <div class="d-flex align-items-center px-3 py-2 bg-light border-bottom text-secondary fw-bold" style="font-size: 12px;">
-                    <div class="me-2 text-center" style="width: 1.5em;">#</div>
-                    <div class="me-3" style="width: 120px;">Sheet 来源</div>
-                    <div class="flex-grow-1 me-2">输出文件名 (Output Name)</div>
-                    <div style="width: 120px;">拆分字段 (Column)</div>
-                    <div style="width: 40px;"></div>
-                </div>
-
-                <div id="fileList" style="min-height: 120px; max-height: 350px; overflow-y: auto;">
-                    <div class="d-flex flex-column align-items-center justify-content-center py-5 text-muted small">
-                        <i class="bi bi-folder2-open display-6 mb-2 text-light-emphasis"></i>
-                        <p>请点击刷新按钮或上传新文件</p>
-                    </div>
-                </div>
-
-                <div class="p-3 border-top bg-light text-end">
-                    <button class="btn btn-xdf-action px-4" id="btnSplit" onclick="executeSplit()">
-                        <i class="bi bi-play-fill me-1"></i> 启动拆分引擎
-                    </button>
-                </div>
-            </div>
-
-            <div class="tool-card">
-                <div class="card-header-xdf">
-                    <span class="header-title"><i class="bi bi-envelope-check me-2"></i>4. 邮件分发</span>
-                    <button class="btn btn-sm btn-outline-dark" onclick="loadPreview()">
-                        <i class="bi bi-eye me-1"></i> 生成/重置预览
-                    </button>
-                </div>
-                <div class="p-4 bg-white">
-                    <div id="previewArea" class="mb-4">
-                        <div class="alert alert-light border text-center text-muted small py-3">
-                            暂无预览数据，请先执行拆分并点击生成预览。
-                        </div>
-                    </div>
-
-                    <div class="smtp-box mb-4">
-                        <div class="d-flex align-items-center mb-3">
-                            <h6 class="fw-bold text-secondary mb-0" style="font-size: 13px;">
-                                <i class="bi bi-hdd-network me-2"></i>SMTP 服务器配置
-                            </h6>
-                            <small class="ms-auto text-muted" style="font-size: 11px;">系统将自动记忆配置</small>
+                    <div class="ref-config-body" id="refConfigBody">
+                        <div class="text-muted mb-3" style="font-size:12px;line-height:1.6;">
+                            配置本期 / 同期「内部签约明细表」路径。系统将分别读取：<br>
+                            • <strong>附件1签约明细表</strong> → <code style="font-size:11px;">签约分组</code>（合同号 → 分组部门）<br>
+                            • <strong>附件4退费及转国家明细</strong> → <code style="font-size:11px;">退费分组</code>（合同号 → 分组部门）<br>
+                            拆分时可逐 Sheet 选择套用哪张映射表。
                         </div>
 
-                        <div class="row g-3">
-                            <div class="col-md-4">
-                                <label class="form-label-sm">服务器地址 (Host)</label>
-                                <input id="smtpS" class="form-control" value="smtp.xdf.cn" placeholder="smtp.example.com">
-                            </div>
-                            <div class="col-md-2">
-                                <label class="form-label-sm">端口 (Port)</label>
-                                <input id="smtpP" class="form-control" value="25">
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label-sm">发件账号</label>
-                                <input id="smtpU" class="form-control" placeholder="user@xdf.cn">
-                            </div>
-                            <div class="col-md-3">
-                                <label class="form-label-sm">授权码/密码</label>
-                                <input id="smtpW" type="password" class="form-control" placeholder="••••••">
-                            </div>
+                        <div class="ref-path-row">
+                            <span class="ref-path-label">本期</span>
+                            <div class="ref-status-dot err" id="refDotBenqi"></div>
+                            <input type="text" class="ref-path-input" id="refPathBenqi" placeholder="例: \\10.149.110.249\caiwu\...\26财年内部签约明细表.xlsx">
                         </div>
-                    </div>
+                        <div class="ref-path-row">
+                            <span class="ref-path-label">同期</span>
+                            <div class="ref-status-dot err" id="refDotTongqi"></div>
+                            <input type="text" class="ref-path-input" id="refPathTongqi" placeholder="例: \\10.149.110.249\caiwu\...\25财年内部签约明细表.xlsx">
+                        </div>
 
-                    <button class="btn btn-danger w-100 py-2 shadow-sm" id="btnSend" onclick="executeDistribute()" disabled>
-                        <span class="fw-bold"><i class="bi bi-send-fill me-2"></i>确认发送邮件</span>
-                    </button>
+                        <div class="d-flex align-items-center gap-2 mt-3">
+                            <button class="btn btn-sm btn-xdf-primary px-3" onclick="saveRefConfig()"><i class="bi bi-check-lg me-1"></i>保存配置</button>
+                            <button class="btn btn-sm btn-outline-secondary px-3" onclick="testMapping()"><i class="bi bi-play-circle me-1"></i>测试映射</button>
+                            <span id="refSaveStatus" class="small ms-2" style="display:none;"></span>
+                        </div>
+                        <div class="form-text small text-muted mt-2" style="font-size:11px;">
+                            <i class="bi bi-info-circle me-1"></i>请先「保存配置」再点击「测试映射」
+                        </div>
+                        <div id="mappingTestResult" class="mt-3" style="display:none;"></div>
+                    </div>
                 </div>
             </div>
         </div>
+        <div class="wizard-footer">
+            <div></div>
+            <button class="btn-wizard-next" onclick="goToStep(1)">下一步：配置拆分 <i class="bi bi-arrow-right"></i></button>
+        </div>
+    </div>
 
-        <div class="col-lg-4">
-            <div class="sticky-top" style="top: 80px;">
-                <h6 class="fw-bold text-secondary mb-2" style="font-size: 12px; letter-spacing: 0.5px;">系统运行日志 (SYSTEM LOG)</h6>
-                <div id="terminal">
-                    <div class="mb-1"><span class="log-time">[INIT]</span> 系统初始化完成...</div>
-                    <div class="mb-1"><span class="log-time">[READY]</span> 等待用户指令</div>
+    <!-- STEP 1 -->
+    <div class="step-panel" id="panel-1">
+        <div class="wizard-card">
+            <div class="wizard-card-header">
+                <div class="step-icon" style="background:#FFF3E0;color:#E65100;"><i class="bi bi-sliders2"></i></div>
+                <div class="flex-grow-1"><h5>拆分配置</h5><p>选择 Sheet、指定拆分字段与输出名称，并为需要的 Sheet 选择分组类别</p></div>
+                <button class="btn btn-sm btn-light border text-secondary" onclick="loadFiles()" style="flex-shrink:0;"><i class="bi bi-arrow-clockwise me-1"></i>刷新</button>
+            </div>
+            <div class="wizard-card-body p-0">
+                <div id="mappingStatusBanner" class="mapping-status-banner none mx-4 mt-4" style="display:none;">
+                    <i class="bi bi-info-circle"></i>
+                    <span id="mappingStatusText">加载中...</span>
+                </div>
+                <div style="max-height:420px;overflow-y:auto;">
+                    <table class="config-table">
+                        <thead><tr>
+                            <th style="width:36px;text-align:center;">#</th>
+                            <th style="width:120px;">Sheet 来源</th>
+                            <th>输出名称</th>
+                            <th style="width:120px;">分组类别</th>
+                            <th style="width:130px;">拆分字段</th>
+                        </tr></thead>
+                        <tbody id="fileListBody">
+                            <tr><td colspan="5"><div class="empty-state"><i class="bi bi-folder2-open"></i><p style="font-size:13px;">加载中...</p></div></td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
+        <div class="wizard-footer">
+            <button class="btn-wizard-back" onclick="goToStep(0)"><i class="bi bi-arrow-left"></i> 返回</button>
+            <button class="btn-wizard-next" id="btnSplit" onclick="executeSplit()"><i class="bi bi-scissors me-1"></i> 执行拆分并继续</button>
+        </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div class="step-panel" id="panel-2">
+        <div class="wizard-card">
+            <div class="wizard-card-header">
+                <div class="step-icon" style="background:#E3F2FD;color:#1565C0;"><i class="bi bi-envelope-open"></i></div>
+                <div class="flex-grow-1"><h5>邮件预览</h5><p>确认收件人，点击即可修改（自动保存）</p></div>
+                <button class="btn btn-sm btn-light border text-secondary" onclick="loadPreview()" style="flex-shrink:0;"><i class="bi bi-arrow-clockwise me-1"></i>刷新</button>
+            </div>
+            <div class="wizard-card-body p-0">
+                <div id="previewArea" style="max-height:420px;overflow-y:auto;">
+                    <div class="empty-state"><i class="bi bi-hourglass-split"></i><p style="font-size:13px;">加载中...</p></div>
+                </div>
+            </div>
+        </div>
+        <div class="wizard-footer">
+            <button class="btn-wizard-back" onclick="goToStep(1)"><i class="bi bi-arrow-left"></i> 返回</button>
+            <button class="btn-wizard-next" onclick="goToStep(3)">下一步：配置发送 <i class="bi bi-arrow-right"></i></button>
+        </div>
+    </div>
+
+    <!-- STEP 3 -->
+    <div class="step-panel" id="panel-3">
+        <div class="wizard-card">
+            <div class="wizard-card-header">
+                <div class="step-icon" style="background:#FCE4EC;color:#C62828;"><i class="bi bi-send-fill"></i></div>
+                <div><h5>SMTP 配置 & 发送</h5><p>确认发件服务器信息，一键完成邮件批量分发</p></div>
+            </div>
+            <div class="wizard-card-body">
+                <div class="d-flex align-items-center gap-3 mb-4 p-3 rounded" style="background:#F0FAF9;border:1px solid #C8E6C9;">
+                    <i class="bi bi-check-circle-fill text-success" style="font-size:1.5rem;"></i>
+                    <div>
+                        <div class="fw-bold" style="font-size:14px;color:#1B5E20;">发送就绪</div>
+                        <div class="text-muted" style="font-size:12px;">目标月份：<strong id="summaryMonth">—</strong>　|　待发送：<strong id="summaryCount">0</strong> 封</div>
+                    </div>
+                </div>
+                <div class="smtp-config-grid mb-4">
+                    <div class="smtp-field"><label>服务器 (Host)</label><input id="smtpS" class="form-control" value="smtp.xdf.cn"></div>
+                    <div class="smtp-field"><label>端口 (Port)</label><input id="smtpP" class="form-control" value="25"></div>
+                    <div class="smtp-field"><label>发件账号</label><input id="smtpU" class="form-control" placeholder="user@xdf.cn"></div>
+                    <div class="smtp-field"><label>授权码/密码</label><input id="smtpW" type="password" class="form-control" placeholder="••••••"></div>
+                </div>
+                <button class="btn btn-danger w-100 py-3 fw-bold" id="btnSend" onclick="executeDistribute()" style="border-radius:8px;font-size:15px;box-shadow:0 4px 12px rgba(220,53,69,0.2);"><i class="bi bi-send-fill me-2"></i>确认发送全部邮件</button>
+                <div class="text-center mt-2"><small class="text-muted"><i class="bi bi-shield-check me-1"></i>点击后将连接 SMTP 服务器批量发送</small></div>
+            </div>
+        </div>
+        <div class="wizard-footer">
+            <button class="btn-wizard-back" onclick="goToStep(2)"><i class="bi bi-arrow-left"></i> 返回修改</button>
+            <div></div>
+        </div>
+    </div>
+
+    <!-- STEP 4 -->
+    <div class="step-panel" id="panel-4"><div class="wizard-card"><div class="wizard-card-body">
+        <div class="success-view">
+            <div class="check-anim"><i class="bi bi-check-lg"></i></div>
+            <h3 class="fw-bold mb-2" style="color:var(--xdf-green);">邮件分发完成</h3>
+            <p class="text-muted mb-4" id="successSummaryText">所有任务已执行完毕</p>
+            <div id="sendResultDetail" class="text-start mx-auto" style="max-width:480px;"></div>
+            <div class="mt-4 d-flex justify-content-center gap-3">
+                <button class="btn btn-outline-secondary px-4" onclick="location.reload()"><i class="bi bi-arrow-counterclockwise me-1"></i>重新开始</button>
+                <a href="/" class="btn btn-xdf-primary px-4"><i class="bi bi-grid me-1"></i>返回工具大厅</a>
+            </div>
+        </div>
+    </div></div></div>
+
+    <!-- 日志 -->
+    <div class="log-drawer">
+        <div class="log-toggle" onclick="toggleLog()"><i class="bi bi-terminal me-1"></i>操作日志 <span class="chevron"><i class="bi bi-chevron-down"></i></span> <span id="logBadge" class="badge bg-secondary bg-opacity-25 text-dark ms-2" style="font-size:10px;display:none;">0</span></div>
+        <div id="terminal"><div class="mb-1"><span class="log-time">[INIT]</span><span class="log-info"> 系统初始化完成</span></div></div>
     </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    // --- 日志工具 ---
-    function addLog(msg, type='info'){
-        const term = document.getElementById('terminal');
-        const div = document.createElement('div');
-        div.className = `mb-1 log-${type}`;
-        const time = new Date().toTimeString().split(' ')[0];
-        div.innerHTML = `<span class="log-time">[${time}]</span> ${msg}`;
-        term.appendChild(div);
-        term.scrollTop = term.scrollHeight;
-    }
+let currentStep=0, originalDispatch=[], logCount=0;
+let mappingReady=false, mappingStats=null;
 
-    // --- 1. 同步 ---
-    async function triggerSync() {
-        const date = document.getElementById('syncMonth').value;
-        if(!date) return alert("请选择月份");
+// === STEPPER ===
+function goToStep(t){
+    if(currentStep===0&&t===1){ if(!document.getElementById('syncMonth').value){alert('请先选择目标月份');document.getElementById('syncMonth').focus();return;} loadFiles();checkMappingStatus(); }
+    if(t===2) loadPreview();
+    if(t===3){ document.getElementById('summaryMonth').textContent=document.getElementById('syncMonth').value||'—'; document.getElementById('summaryCount').textContent=originalDispatch.length; }
+    document.querySelectorAll('.step-panel').forEach(p=>p.classList.remove('active'));
+    document.getElementById('panel-'+t).classList.add('active');
+    const nodes=document.querySelectorAll('.step-node');
+    nodes.forEach((n,i)=>{n.classList.remove('active','done');if(i<t)n.classList.add('done');if(i===t)n.classList.add('active');});
+    document.getElementById('stepperLine').style.width=(t/(nodes.length-1))*70+'%';
+    currentStep=t; window.scrollTo({top:0,behavior:'smooth'});
+}
 
-        const btn = document.getElementById('btnSync');
-        const originalHtml = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>同步中...';
+// === LOG ===
+function addLog(m,type='info'){const term=document.getElementById('terminal'),d=document.createElement('div');d.className='mb-1 log-'+type;d.innerHTML=`<span class="log-time">[${new Date().toTimeString().split(' ')[0]}]</span> ${m}`;term.appendChild(d);term.scrollTop=term.scrollHeight;logCount++;const b=document.getElementById('logBadge');b.textContent=logCount;b.style.display='inline-block';}
+function toggleLog(){document.getElementById('terminal').classList.toggle('open');document.querySelector('.log-toggle').classList.toggle('open');}
 
-        try {
-            const res = await fetch('/api/excel/sync', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ date })
-            });
-            const r = await res.json();
-            addLog(r.message, r.status==='success'?'success':'error');
-            if(r.status === 'success') loadFiles();
-        } catch(e) { addLog("请求失败: " + e.message, "error"); }
-        btn.disabled = false;
-        btn.innerHTML = originalHtml;
-    }
+// === STEP 0: SYNC & UPLOAD ===
+async function triggerSync(){
+    const d=document.getElementById('syncMonth').value; if(!d) return alert('请选择月份');
+    if(!confirm('同步前会清空 RawData 目录，确认继续？')) return;
+    const btn=document.getElementById('btnSync'),o=btn.innerHTML; btn.disabled=true; btn.innerHTML='<span class="spinner-inline me-2"></span>同步中...';
+    addLog('清空 RawData 并触发 N8N ('+d+')...','warn');
+    try{const r=await(await fetch('/api/excel/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:d})})).json();addLog(r.message,r.status==='success'?'success':'error');if(r.status==='success')refreshUploadedChips();}catch(e){addLog('同步失败:'+e.message,'error');}
+    btn.disabled=false;btn.innerHTML=o;
+}
+function handleDrop(e){e.preventDefault();e.currentTarget.classList.remove('dragover');if(e.dataTransfer.files.length>0){document.getElementById('excelUploader').files=e.dataTransfer.files;uploadFile();}}
+async function uploadFile(force=false){
+    const fi=document.getElementById('excelUploader'),f=fi.files[0];if(!f)return;
+    const fd=new FormData();fd.append('file',f);fd.append('force',force);if(!force)addLog('上传:'+f.name+'...','warn');
+    try{const r=await(await fetch('/api/excel/upload',{method:'POST',body:fd})).json();
+    if(r.status==='exists'){if(confirm(r.message)){addLog('确认覆盖:'+r.filename,'warn');await uploadFile(true);}else addLog('取消上传','info');}
+    else if(r.status==='success'){addLog(r.message,'success');fi.value='';refreshUploadedChips();}else addLog(r.message,'error');
+    }catch(e){addLog('上传异常:'+e.message,'error');}
+}
+async function refreshUploadedChips(){try{const d=await(await fetch('/api/excel/files')).json(),c=document.getElementById('uploadedFiles');c.innerHTML='';Object.keys(d).forEach(f=>{c.innerHTML+=`<div class="file-chip"><i class="bi bi-file-earmark-excel-fill text-success"></i>${f}<span class="remove-chip" onclick="deleteFile('${f}')"><i class="bi bi-x-lg"></i></span></div>`;});}catch(e){}}
+async function deleteFile(fn){if(!confirm('确定删除 "'+fn+'" ?'))return;addLog('删除:'+fn+'...','warn');try{const r=await(await fetch('/api/excel/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:fn})})).json();addLog(r.message,r.status==='success'?'success':'error');if(r.status==='success')refreshUploadedChips();}catch(e){addLog('删除失败:'+e.message,'error');}}
 
-    // --- 2. 手动上传 ---
-    async function uploadFile(force = false) {
-        const fileInput = document.getElementById('excelUploader');
-        const file = fileInput.files[0];
+// === STEP 0: REF CONFIG ===
+function toggleRefConfig(){const b=document.getElementById('refConfigBody'),ch=document.getElementById('refChevron');b.classList.toggle('open');ch.style.transform=b.classList.contains('open')?'rotate(180deg)':'';}
 
-        if (!file) {
-            alert("请先选择要上传的 Excel 文件");
-            return;
-        }
+async function loadRefConfig(){
+    try{const c=await(await fetch('/api/excel/group_config')).json();
+    document.getElementById('refPathBenqi').value=c.ref_benqi||'';
+    document.getElementById('refPathTongqi').value=c.ref_tongqi||'';
+    document.getElementById('refDotBenqi').className='ref-status-dot '+(c.ref_benqi_exists?'ok':'err');
+    document.getElementById('refDotTongqi').className='ref-status-dot '+(c.ref_tongqi_exists?'ok':'err');
+    updateRefBadge(c);
+    }catch(e){console.error(e);}
+}
 
-        const btn = document.getElementById('btnUpload');
-        const originalHtml = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>处理中...';
+function updateRefBadge(c){
+    const b=document.getElementById('refStatusBadge'),has=(c.ref_benqi||c.ref_tongqi),allOk=c.ref_benqi_exists&&c.ref_tongqi_exists,someOk=c.ref_benqi_exists||c.ref_tongqi_exists;
+    if(!has){b.textContent='未配置';b.className='badge bg-secondary bg-opacity-25 text-dark';}
+    else if(allOk){b.textContent='✓ 已就绪';b.className='badge bg-success bg-opacity-25 text-success';}
+    else if(someOk){b.textContent='部分可用';b.className='badge bg-warning bg-opacity-25 text-warning';}
+    else{b.textContent='文件不可达';b.className='badge bg-danger bg-opacity-25 text-danger';}
+}
 
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('force', force);
+async function saveRefConfig(){
+    const st=document.getElementById('refSaveStatus');st.style.display='inline';st.textContent='保存中...';st.className='small ms-2 text-muted';
+    try{const r=await(await fetch('/api/excel/group_config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ref_benqi:document.getElementById('refPathBenqi').value,ref_tongqi:document.getElementById('refPathTongqi').value})})).json();
+    if(r.status==='success'){st.textContent='✓ 已保存';st.className='small ms-2 text-success';addLog('分组参照路径已保存','success');
+    if(r.files){document.getElementById('refDotBenqi').className='ref-status-dot '+(r.files.ref_benqi?.exists?'ok':'err');document.getElementById('refDotTongqi').className='ref-status-dot '+(r.files.ref_tongqi?.exists?'ok':'err');updateRefBadge({ref_benqi:r.files.ref_benqi?.path,ref_tongqi:r.files.ref_tongqi?.path,ref_benqi_exists:r.files.ref_benqi?.exists,ref_tongqi_exists:r.files.ref_tongqi?.exists});}
+    setTimeout(()=>{st.style.display='none';},2500);}else{st.textContent='保存失败';st.className='small ms-2 text-danger';}
+    }catch(e){st.textContent='网络错误';st.className='small ms-2 text-danger';}
+}
 
-        try {
-            if(!force) addLog(`准备上传文件: ${file.name}...`, 'warn');
-            const res = await fetch('/api/excel/upload', {
-                method: 'POST',
-                body: formData
-            });
-            const result = await res.json();
+async function testMapping(){
+    const rd=document.getElementById('mappingTestResult');rd.style.display='block';
+    rd.innerHTML='<div class="text-muted" style="font-size:13px;"><span class="spinner-dark me-2"></span>正在读取参照文件...</div>';
+    addLog('测试分组映射...','warn');
+    try{const result=await(await fetch('/api/excel/test_mapping',{method:'POST'})).json();
+    const s=result.stats||{}, qy=s['签约_total']||0, tf=s['退费_total']||0, total=s.total||0;
+    const logsHtml=result.logs.map(l=>{let c='text-muted';if(l.includes('[成功]')||l.includes('[完成]'))c='text-success';else if(l.includes('[错误]'))c='text-danger';else if(l.includes('[警告]')||l.includes('[跳过]'))c='text-warning';return '<div class="'+c+'" style="font-size:12px;line-height:1.7;">'+l+'</div>';}).join('');
+    const ok=total>0;
+    rd.innerHTML=`<div class="p-3 rounded" style="background:#F8F9FA;border:1px solid #E8E8E8;">
+        <div class="fw-bold mb-2" style="font-size:13px;color:${ok?'#2E7D32':'#F57F17'};"><i class="bi ${ok?'bi-check-circle-fill text-success':'bi-exclamation-triangle-fill text-warning'} me-1"></i>签约映射: ${qy} 条 | 退费映射: ${tf} 条 | 合计: ${total} 条</div>
+        <div style="max-height:140px;overflow-y:auto;">${logsHtml}</div></div>`;
+    result.logs.forEach(l=>addLog('[映射] '+l,l.includes('[错误]')?'error':'info'));
+    }catch(e){rd.innerHTML='<div class="text-danger" style="font-size:13px;">测试失败:'+e.message+'</div>';addLog('映射测试失败:'+e.message,'error');}
+}
 
-            if (result.status === 'exists') {
-                const userConfirmed = confirm(result.message);
-                if (userConfirmed) {
-                    addLog(`用户确认覆盖文件: ${result.filename}`, 'warn');
-                    await uploadFile(true);
-                } else {
-                    addLog("用户取消上传", 'info');
-                }
-            }
-            else if (result.status === 'success') {
-                addLog(result.message, 'success');
-                if(!force) fileInput.value = '';
-                addLog("正在刷新文件列表...", 'info');
-                await loadFiles();
-            } else {
-                addLog(result.message, 'error');
-            }
-        } catch(e) {
-            addLog("上传异常: " + e.message, 'error');
-        }
-        btn.disabled = false;
-        btn.innerHTML = originalHtml;
-    }
+// === STEP 1: SPLIT CONFIG ===
+async function checkMappingStatus(){
+    const banner=document.getElementById('mappingStatusBanner'),text=document.getElementById('mappingStatusText');
+    banner.style.display='flex';banner.className='mapping-status-banner none mx-4 mt-4';text.innerHTML='<span class="spinner-dark me-1"></span>检查分组映射...';
+    try{const r=await(await fetch('/api/excel/test_mapping',{method:'POST'})).json();
+    const s=r.stats||{},qy=s['签约_total']||0,tf=s['退费_total']||0,total=s.total||0;
+    mappingStats=s;
+    if(total>0){banner.className='mapping-status-banner ready mx-4 mt-4';text.innerHTML=`<i class="bi bi-diagram-3 me-1"></i>签约映射: <strong>${qy}</strong> 条　退费映射: <strong>${tf}</strong> 条 — 请在下方为每个 Sheet 选择分组类别`;mappingReady=true;}
+    else{banner.className='mapping-status-banner empty mx-4 mt-4';text.innerHTML='<i class="bi bi-exclamation-triangle me-1"></i>未加载到分组映射，可返回上一步配置';mappingReady=false;}
+    }catch(e){banner.className='mapping-status-banner none mx-4 mt-4';text.textContent='映射检查失败';mappingReady=false;}
+}
 
-    // --- 3. 加载文件 (新增删除按钮逻辑) ---
-    async function loadFiles() {
-        const container = document.getElementById('fileList');
-        container.innerHTML = '<div class="text-center py-5"><div class="spinner-border spinner-border-sm text-secondary"></div> <span class="text-muted small ms-2">正在扫描 RawData...</span></div>';
-
-        try {
-            const res = await fetch('/api/excel/files');
-            const data = await res.json();
-            container.innerHTML = "";
-
-            if (Object.keys(data).length === 0) {
-                container.innerHTML = '<div class="p-4 text-center text-muted small">RawData 目录为空，请执行同步或上传文件</div>';
-                return;
-            }
-
-            for (const [filename, sheets] of Object.entries(data)) {
-                // [核心修改] 文件头：增加删除按钮
-                // 使用 d-flex justify-content-between 確保檔名在左，刪除鈕在右
-                container.innerHTML += `
-                    <div class="px-3 py-2 bg-secondary bg-opacity-10 border-bottom border-top mt-0 d-flex justify-content-between align-items-center">
-                        <small class="fw-bold text-dark"><i class="bi bi-file-earmark-excel-fill text-success me-1"></i> ${filename}</small>
-
-                        <i class="bi bi-trash btn-delete-file"
-                           onclick="deleteFile('${filename}')"
-                           title="删除此文件"></i>
-                    </div>`;
-
-                // Sheet 列表
-                for (const [sName, info] of Object.entries(sheets)) {
-                    const options = info.columns.map(c => `<option value="${c}" ${c===info.suggested_col?'selected':''}>${c}</option>`).join('');
-
-                    container.innerHTML += `
-                    <div class="d-flex align-items-center px-3 py-2 border-bottom bg-white sheet-row">
-                        <div class="form-check me-2" style="width: 1.5em; text-align: center;">
-                            <input type="checkbox" class="form-check-input sheet-check" data-file="${filename}" data-origin="${sName}" data-h="${info.header_idx}" checked>
-                        </div>
-                        <div class="text-truncate small fw-medium text-secondary me-3" style="width: 120px;" title="${sName}">${sName}</div>
-                        <div class="flex-grow-1 me-2">
-                            <input type="text" class="form-control form-control-sm custom-name" value="${(filename.split('.')[0]+sName).substring(0,25)}" placeholder="输出文件名">
-                        </div>
-                        <div style="width: 120px;">
-                            <select class="form-select form-select-sm split-col">${options}</select>
-                        </div>
-                        <div style="width: 40px;"></div>
-                    </div>`;
-                }
-            }
-            addLog("文件列表已更新", "success");
-        } catch(e) {
-            container.innerHTML = `<div class="p-3 text-danger small">加载失败: ${e.message}</div>`;
-            addLog("扫描失败: " + e.message, "error");
+async function loadFiles(){
+    const tbody=document.getElementById('fileListBody');
+    tbody.innerHTML='<tr><td colspan="5"><div class="empty-state"><div class="spinner-border spinner-border-sm text-secondary"></div><p style="font-size:13px;margin-top:8px;">扫描中...</p></div></td></tr>';
+    try{const data=await(await fetch('/api/excel/files')).json();tbody.innerHTML='';
+    if(Object.keys(data).length===0){tbody.innerHTML='<tr><td colspan="5"><div class="empty-state"><i class="bi bi-folder2-open"></i><p style="font-size:13px;">RawData 为空</p></div></td></tr>';return;}
+    for(const [fn,sheets] of Object.entries(data)){
+        tbody.innerHTML+=`<tr class="file-group-header"><td colspan="5"><i class="bi bi-file-earmark-excel-fill text-success me-1"></i>${fn}</td></tr>`;
+        for(const [sn,info] of Object.entries(sheets)){
+            const opts=info.columns.map(c=>`<option value="${c}" ${c===info.suggested_col?'selected':''}>${c}</option>`).join('');
+            const dn=(fn.split('.')[0]+sn).substring(0,25);
+            tbody.innerHTML+=`<tr>
+                <td class="text-center"><input type="checkbox" class="form-check-input sheet-check" data-file="${fn}" data-origin="${sn}" data-h="${info.header_idx}" checked></td>
+                <td><span class="badge bg-light text-dark border fw-normal" style="font-size:11px;">${sn}</span></td>
+                <td><input type="text" class="input-cell custom-name" value="${dn}" placeholder="输出名称"></td>
+                <td><select class="form-select form-select-sm group-type-select">
+                    <option value="">不追加</option>
+                    <option value="签约">签约分组</option>
+                    <option value="退费">退费分组</option>
+                </select></td>
+                <td><select class="form-select form-select-sm split-col" style="font-size:12px;height:34px;">${opts}</select></td>
+            </tr>`;
         }
     }
+    addLog('文件列表已更新','success');
+    }catch(e){tbody.innerHTML='<tr><td colspan="5" class="text-danger p-3 small">加载失败:'+e.message+'</td></tr>';addLog('扫描失败:'+e.message,'error');}
+}
 
-    // [新增] 刪除檔案函數
-    async function deleteFile(filename) {
-        if (!confirm(`⚠️ 警告：\n确定要永久删除文件 "${filename}" 吗？`)) return;
+async function executeSplit(){
+    const sel={},checked=document.querySelectorAll('.sheet-check:checked');
+    if(checked.length===0) return alert('请至少勾选一个 Sheet');
+    checked.forEach(cb=>{const f=cb.getAttribute('data-file'),s=cb.getAttribute('data-origin');if(!sel[f])sel[f]={};const row=cb.closest('tr');
+    sel[f][s]={
+        custom: row.querySelector('.custom-name').value,
+        col:    row.querySelector('.split-col').value,
+        h:      parseInt(cb.getAttribute('data-h')),
+        group_type: row.querySelector('.group-type-select').value
+    };});
+    const btn=document.getElementById('btnSplit'),orig=btn.innerHTML;btn.disabled=true;
+    btn.innerHTML='<span class="spinner-inline me-2"></span>拆分中...';addLog('开始拆分...','warn');
+    try{const result=await(await fetch('/api/excel/split',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({selection:sel})})).json();
+    addLog(result.message,result.status==='success'?'success':'error');
+    if(result.logs)result.logs.forEach(l=>addLog(' > '+l,'info'));
+    if(result.status==='success'){addLog('跳转邮件预览...','success');setTimeout(()=>goToStep(2),600);}
+    }catch(e){addLog('拆分异常:'+e.message,'error');}
+    btn.disabled=false;btn.innerHTML=orig;
+}
 
-        addLog(`正在请求删除文件: ${filename}...`, 'warn');
-        try {
-            const res = await fetch('/api/excel/delete', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ filename: filename })
-            });
-            const result = await res.json();
+// === STEP 2: PREVIEW ===
+async function loadPreview(){
+    const a=document.getElementById('previewArea');
+    a.innerHTML='<div class="empty-state"><div class="spinner-border spinner-border-sm text-secondary"></div><p style="font-size:13px;margin-top:8px;">匹配收件人...</p></div>';
+    try{originalDispatch=await(await fetch('/api/excel/preview')).json();
+    if(originalDispatch.length===0){a.innerHTML='<div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p style="font-size:13px;">未找到拆分文件</p></div>';return;}
+    let h='<table class="preview-table"><thead><tr><th style="width:15%">业务条线</th><th style="width:22%">附件</th><th>收件人 (点击编辑)</th></tr></thead><tbody>';
+    originalDispatch.forEach(i=>{const v=i.recipients.join(', ');h+=`<tr><td><span class="badge bg-secondary bg-opacity-25 text-dark border fw-normal">${i.line}</span></td><td class="text-muted">${i.file}</td><td><div class="d-flex align-items-center"><input type="text" class="input-email" value="${v}" data-line="${i.line}" onchange="handleRecipientChange(this)" placeholder="输入邮箱"><span class="save-indicator small ms-2 text-success" style="display:none;width:50px;flex-shrink:0;"></span></div></td></tr>`;});
+    h+='</tbody></table>';a.innerHTML=h;addLog('预览完毕,共'+originalDispatch.length+'项','success');
+    }catch(e){a.innerHTML='<div class="text-danger p-3 small">加载失败:'+e.message+'</div>';addLog('预览失败:'+e.message,'error');}
+}
+async function handleRecipientChange(inp){
+    const line=inp.getAttribute('data-line'),val=inp.value.trim(),ind=inp.nextElementSibling;
+    const list=val.split(/[;,，]/).map(e=>e.trim()).filter(e=>e);
+    ind.style.display='inline-block';ind.textContent='Saving...';ind.className='save-indicator small ms-2 text-muted';
+    try{const r=await(await fetch('/api/excel/save_recipient',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({line,recipients:list})})).json();
+    if(r.status==='success'){ind.textContent='✓ Saved';ind.className='save-indicator small ms-2 text-success';inp.classList.add('modified');const it=originalDispatch.find(i=>i.line===line);if(it)it.recipients=list;addLog('已保存['+line+']','info');setTimeout(()=>{ind.style.display='none';},2000);}
+    else{ind.textContent='Error';ind.className='save-indicator small ms-2 text-danger';}
+    }catch(e){ind.textContent='Error';ind.className='save-indicator small ms-2 text-danger';}
+}
 
-            if (result.status === 'success') {
-                addLog(result.message, 'success');
-                // 刪除成功後，刷新列表
-                loadFiles();
-            } else {
-                addLog(result.message, 'error');
-            }
-        } catch(e) {
-            addLog("删除请求异常: " + e.message, 'error');
-        }
-    }
+// === STEP 3: SEND ===
+async function executeDistribute(){
+    const ym=document.getElementById('syncMonth').value;if(!ym)return alert('请先选择目标月份');
+    if(!confirm('确认发送'+originalDispatch.length+'封邮件？\n月份:'+ym))return;
+    const smtp={server:document.getElementById('smtpS').value,port:document.getElementById('smtpP').value,user:document.getElementById('smtpU').value,password:document.getElementById('smtpW').value};
+    const fl=originalDispatch.map(i=>({line:i.line,file:i.file,recipients:i.recipients}));
+    const btn=document.getElementById('btnSend'),orig=btn.innerHTML;btn.disabled=true;btn.innerHTML='<span class="spinner-inline me-2"></span>发送中...';addLog('连接SMTP('+ym+')...','warn');
+    try{const result=await(await fetch('/api/excel/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({smtp_config:smtp,dispatch_list:fl,yyyymm:ym})})).json();
+    if(result.error){addLog(result.error,'error');btn.disabled=false;btn.innerHTML=orig;}
+    else{addLog('完毕! 成功:'+result.success.length+', 失败:'+result.failed.length,'success');showFinalResult(result);}
+    }catch(e){addLog('发送失败:'+e.message,'error');btn.disabled=false;btn.innerHTML=orig;}
+}
+function showFinalResult(r){
+    const d=document.getElementById('sendResultDetail');let h='';
+    if(r.success.length>0)h+='<div class="p-3 mb-3 rounded" style="background:#E8F5E9;border:1px solid #C8E6C9;"><div class="fw-bold text-success mb-1"><i class="bi bi-check-circle me-1"></i>成功('+r.success.length+')</div><div class="text-muted" style="font-size:13px;">'+r.success.join('、')+'</div></div>';
+    if(r.failed.length>0){const fl=r.failed.map(f=>f.line+':'+f.reason).join('<br>');h+='<div class="p-3 mb-3 rounded" style="background:#FFEBEE;border:1px solid #FFCDD2;"><div class="fw-bold text-danger mb-1"><i class="bi bi-x-circle me-1"></i>失败('+r.failed.length+')</div><div class="text-muted" style="font-size:13px;">'+fl+'</div></div>';}
+    d.innerHTML=h;document.getElementById('successSummaryText').textContent='成功'+r.success.length+'封, 失败'+r.failed.length+'封';goToStep(4);
+}
 
-    // --- 4. 拆分 ---
-    async function executeSplit() {
-        const selection = {};
-        const checked = document.querySelectorAll('.sheet-check:checked');
-        if(checked.length === 0) return alert("未勾选任何 Sheet");
-
-        checked.forEach(cb => {
-            const f = cb.getAttribute('data-file'), s = cb.getAttribute('data-origin');
-            if(!selection[f]) selection[f] = {};
-            const row = cb.closest('.d-flex');
-            selection[f][s] = {
-                custom: row.querySelector('.custom-name').value,
-                col: row.querySelector('.split-col').value,
-                h: parseInt(cb.getAttribute('data-h'))
-            };
-        });
-
-        const btn = document.getElementById('btnSplit');
-        const originalHtml = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>处理中...';
-
-        addLog("开始执行 Excel 拆分任务...", "warn");
-        try {
-            const res = await fetch('/api/excel/split', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ selection })
-            });
-            const result = await res.json();
-            addLog(result.message, result.status === 'success' ? 'success' : 'error');
-            if(result.logs) result.logs.forEach(l => addLog(' > ' + l, 'info'));
-        } catch(e) { addLog("任务异常: " + e.message, "error"); }
-        btn.disabled = false;
-        btn.innerHTML = originalHtml;
-    }
-
-    // --- 5. 预览与编辑 (服务端缓存版) ---
-    let originalDispatch = [];
-
-    async function loadPreview() {
-        const area = document.getElementById('previewArea');
-        area.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm text-secondary"></div> <span class="ms-2 small text-muted">正在匹配收件人...</span></div>';
-
-        try {
-            const res = await fetch('/api/excel/preview');
-            originalDispatch = await res.json();
-
-            if(originalDispatch.length === 0){
-                area.innerHTML = '<div class="alert alert-warning small border-0 text-center">无生成文件，请先执行拆分。</div>';
-                return;
-            }
-
-            let html = `
-            <div class="table-responsive border rounded bg-white">
-                <table class="table table-hover mb-0 table-preview">
-                    <thead>
-                        <tr>
-                            <th style="width:15%">业务条线</th>
-                            <th style="width:25%">附件名称</th>
-                            <th style="width:60%">收件人 (点击修改，自动保存)</th>
-                        </tr>
-                    </thead>
-                    <tbody>`;
-
-            originalDispatch.forEach((item) => {
-                const displayVal = item.recipients.join(', ');
-                html += `
-                <tr>
-                    <td><span class="badge bg-secondary bg-opacity-25 text-dark border fw-normal">${item.line}</span></td>
-                    <td class="text-muted">${item.file}</td>
-                    <td>
-                        <div class="d-flex align-items-center">
-                            <input type="text"
-                                class="input-invisible"
-                                value="${displayVal}"
-                                data-line="${item.line}"
-                                onchange="handleRecipientChange(this)"
-                                placeholder="请输入邮箱，多账号用逗号分隔">
-                            <span class="save-indicator small ms-2 text-success" style="display:none; width:50px;">Saved</span>
-                        </div>
-                    </td>
-                </tr>`;
-            });
-
-            html += '</tbody></table></div>';
-            area.innerHTML = html;
-
-            const btnSend = document.getElementById('btnSend');
-            btnSend.disabled = false;
-            btnSend.innerHTML = '<span class="fw-bold"><i class="bi bi-send-fill me-2"></i>确认发送邮件</span>';
-
-            addLog(`预览生成完毕，共 ${originalDispatch.length} 项任务 (已同步服务端设置)。`, "success");
-        } catch(e) {
-            area.innerHTML = `<div class="text-danger p-3 small">加载失败: ${e.message}</div>`;
-            addLog("预览失败: " + e.message, "error");
-        }
-    }
-
-    async function handleRecipientChange(input) {
-        const line = input.getAttribute('data-line');
-        const value = input.value.trim();
-        const indicator = input.nextElementSibling;
-        const recipientsList = value.split(/[;,，]/).map(e => e.trim()).filter(e => e);
-
-        indicator.style.display = 'inline-block';
-        indicator.textContent = 'Saving...';
-        indicator.classList.remove('text-success');
-        indicator.classList.add('text-muted');
-
-        try {
-            const res = await fetch('/api/excel/save_recipient', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    line: line,
-                    recipients: recipientsList
-                })
-            });
-            const r = await res.json();
-
-            if (r.status === 'success') {
-                indicator.textContent = 'Saved';
-                indicator.classList.remove('text-muted');
-                indicator.classList.add('text-success');
-                input.classList.add('input-modified');
-
-                const item = originalDispatch.find(i => i.line === line);
-                if(item) item.recipients = recipientsList;
-
-                addLog(`已保存 [${line}] 的收件人设置到服务器`, 'info');
-                setTimeout(() => { indicator.style.display = 'none'; }, 2000);
-            } else {
-                indicator.textContent = 'Error';
-                indicator.classList.add('text-danger');
-                alert("保存失败: " + r.message);
-            }
-        } catch (e) {
-            console.error(e);
-            indicator.textContent = 'Error';
-            alert("网络错误，保存失败");
-        }
-    }
-
-    // --- 6. 发送 ---
-    async function executeDistribute() {
-        const yyyymm = document.getElementById('syncMonth').value;
-        if (!yyyymm) {
-            alert("请先在步骤 1 选择目标月份 (YYYY-MM)，用于邮件标题。");
-            return;
-        }
-
-        if(!confirm(`确认要立即发送邮件吗？\n目标月份: ${yyyymm}\n请确保 SMTP 配置正确且收件人无误。`)) return;
-
-        const smtp = {
-            server: document.getElementById('smtpS').value,
-            port: document.getElementById('smtpP').value,
-            user: document.getElementById('smtpU').value,
-            password: document.getElementById('smtpW').value
-        };
-
-        const finalDispatchList = originalDispatch.map(item => {
-             return {
-                line: item.line,
-                file: item.file,
-                recipients: item.recipients
-            };
-        });
-
-        const btn = document.getElementById('btnSend');
-        const originalHtml = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>发送队列处理中...';
-
-        addLog(`正在连接 SMTP 服务器 (月份: ${yyyymm})...`, "warn");
-
-        try {
-            const res = await fetch('/api/excel/send', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    smtp_config: smtp,
-                    dispatch_list: finalDispatchList,
-                    yyyymm: yyyymm
-                })
-            });
-            const result = await res.json();
-            if(result.error) addLog(result.error, "error");
-            else addLog(`分发完毕！成功: ${result.success.length}, 失败: ${result.failed.length}`, "success");
-        } catch(e) { addLog("发送失败: " + e.message, "error"); }
-        btn.disabled = false;
-        btn.innerHTML = originalHtml;
-    }
+// === INIT ===
+document.addEventListener('DOMContentLoaded',()=>{refreshUploadedChips();loadRefConfig();addLog('系统初始化完成','info');});
 </script>
 {% endblock %}
