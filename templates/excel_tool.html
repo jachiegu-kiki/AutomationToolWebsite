@@ -105,6 +105,10 @@
     /* 分组选择下拉 */
     .group-type-select { font-size:12px;height:34px;border-color:#E0E0E0;color:#555; }
     .group-type-select option[value=""] { color:#AAA; }
+
+    /* 跳过拆分按钮 */
+    .btn-outline-primary { border-color:#5C9CE6;color:#2E6EB5; }
+    .btn-outline-primary:hover { background:#EDF4FC;color:#1A5494;border-color:#2E6EB5; }
 </style>
 {% endblock %}
 
@@ -216,7 +220,7 @@
                             <th style="width:130px;">拆分字段</th>
                         </tr></thead>
                         <tbody id="fileListBody">
-                            <tr><td colspan="5"><div class="empty-state"><i class="bi bi-folder2-open"></i><p style="font-size:13px;">加载中...</p></div></td></tr>
+                        <tr><td colspan="5"><div class="empty-state"><i class="bi bi-folder2-open"></i><p style="font-size:13px;">加载中...</p></div></td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -224,7 +228,10 @@
         </div>
         <div class="wizard-footer">
             <button class="btn-wizard-back" onclick="goToStep(0)"><i class="bi bi-arrow-left"></i> 返回</button>
-            <button class="btn-wizard-next" id="btnSplit" onclick="executeSplit()"><i class="bi bi-scissors me-1"></i> 执行拆分并继续</button>
+            <div class="d-flex gap-3">
+                <button class="btn btn-outline-primary px-3" onclick="skipToSend()" style="border-radius:8px;font-size:14px;font-weight:500;"><i class="bi bi-envelope-fill me-1"></i>跳过拆分，直接发送</button>
+                <button class="btn-wizard-next" id="btnSplit" onclick="executeSplit()"><i class="bi bi-scissors me-1"></i> 执行拆分并继续</button>
+            </div>
         </div>
     </div>
 
@@ -263,12 +270,14 @@
                         <div class="text-muted" style="font-size:12px;">目标月份：<strong id="summaryMonth">—</strong>　|　待发送：<strong id="summaryCount">0</strong> 封</div>
                     </div>
                 </div>
-                <div class="smtp-config-grid mb-4">
-                    <div class="smtp-field"><label>服务器 (Host)</label><input id="smtpS" class="form-control" value="smtp.xdf.cn"></div>
-                    <div class="smtp-field"><label>端口 (Port)</label><input id="smtpP" class="form-control" value="25"></div>
-                    <div class="smtp-field"><label>发件账号</label><input id="smtpU" class="form-control" placeholder="user@xdf.cn"></div>
-                    <div class="smtp-field"><label>授权码/密码</label><input id="smtpW" type="password" class="form-control" placeholder="••••••"></div>
-                </div>
+                <form autocomplete="off" onsubmit="return false;" role="presentation">
+                    <div class="smtp-config-grid mb-4">
+                        <div class="smtp-field"><label>服务器 (Host)</label><input id="smtpS" name="smtp_host_xdf" class="form-control" value="smtp.xdf.cn" autocomplete="off" data-lpignore="true" data-form-type="other"></div>
+                        <div class="smtp-field"><label>端口 (Port)</label><input id="smtpP" name="smtp_port_xdf" class="form-control" value="25" autocomplete="off" data-lpignore="true" data-form-type="other"></div>
+                        <div class="smtp-field"><label>发件账号</label><input id="smtpU" name="smtp_user_xdf" class="form-control" placeholder="user@xdf.cn" autocomplete="off" data-lpignore="true" data-form-type="other"></div>
+                        <div class="smtp-field"><label>授权码/密码</label><input id="smtpW" type="password" name="smtp_pass_xdf" class="form-control" placeholder="••••••" autocomplete="new-password" data-lpignore="true" data-form-type="other"></div>
+                    </div>
+                </form>
                 <button class="btn btn-danger w-100 py-3 fw-bold" id="btnSend" onclick="executeDistribute()" style="border-radius:8px;font-size:15px;box-shadow:0 4px 12px rgba(220,53,69,0.2);"><i class="bi bi-send-fill me-2"></i>确认发送全部邮件</button>
                 <div class="text-center mt-2"><small class="text-muted"><i class="bi bi-shield-check me-1"></i>点击后将连接 SMTP 服务器批量发送</small></div>
             </div>
@@ -303,192 +312,229 @@
 
 {% block extra_js %}
 <script>
-let currentStep=0, originalDispatch=[], logCount=0;
-let mappingReady=false, mappingStats=null;
+    let currentStep=0, originalDispatch=[], logCount=0;
+    let mappingReady=false, mappingStats=null;
 
-// === STEPPER ===
-function goToStep(t){
-    if(currentStep===0&&t===1){ if(!document.getElementById('syncMonth').value){alert('请先选择目标月份');document.getElementById('syncMonth').focus();return;} loadFiles();checkMappingStatus(); }
-    if(t===2) loadPreview();
-    if(t===3){ document.getElementById('summaryMonth').textContent=document.getElementById('syncMonth').value||'—'; document.getElementById('summaryCount').textContent=originalDispatch.length; }
-    document.querySelectorAll('.step-panel').forEach(p=>p.classList.remove('active'));
-    document.getElementById('panel-'+t).classList.add('active');
-    const nodes=document.querySelectorAll('.step-node');
-    nodes.forEach((n,i)=>{n.classList.remove('active','done');if(i<t)n.classList.add('done');if(i===t)n.classList.add('active');});
-    document.getElementById('stepperLine').style.width=(t/(nodes.length-1))*70+'%';
-    currentStep=t; window.scrollTo({top:0,behavior:'smooth'});
-}
+    // === SMTP STATE CACHE (prevent browser autocomplete contamination) ===
+    const smtpCache = { server:'smtp.xdf.cn', port:'25', user:'', password:'' };
 
-// === LOG ===
-function addLog(m,type='info'){const term=document.getElementById('terminal'),d=document.createElement('div');d.className='mb-1 log-'+type;d.innerHTML=`<span class="log-time">[${new Date().toTimeString().split(' ')[0]}]</span> ${m}`;term.appendChild(d);term.scrollTop=term.scrollHeight;logCount++;const b=document.getElementById('logBadge');b.textContent=logCount;b.style.display='inline-block';}
-function toggleLog(){document.getElementById('terminal').classList.toggle('open');document.querySelector('.log-toggle').classList.toggle('open');}
-
-// === STEP 0: SYNC & UPLOAD ===
-async function triggerSync(){
-    const d=document.getElementById('syncMonth').value; if(!d) return alert('请选择月份');
-    if(!confirm('同步前会清空 RawData 目录，确认继续？')) return;
-    const btn=document.getElementById('btnSync'),o=btn.innerHTML; btn.disabled=true; btn.innerHTML='<span class="spinner-inline me-2"></span>同步中...';
-    addLog('清空 RawData 并触发 N8N ('+d+')...','warn');
-    try{const r=await(await fetch('/api/excel/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:d})})).json();addLog(r.message,r.status==='success'?'success':'error');if(r.status==='success')refreshUploadedChips();}catch(e){addLog('同步失败:'+e.message,'error');}
-    btn.disabled=false;btn.innerHTML=o;
-}
-function handleDrop(e){e.preventDefault();e.currentTarget.classList.remove('dragover');if(e.dataTransfer.files.length>0){document.getElementById('excelUploader').files=e.dataTransfer.files;uploadFile();}}
-async function uploadFile(force=false){
-    const fi=document.getElementById('excelUploader'),f=fi.files[0];if(!f)return;
-    const fd=new FormData();fd.append('file',f);fd.append('force',force);if(!force)addLog('上传:'+f.name+'...','warn');
-    try{const r=await(await fetch('/api/excel/upload',{method:'POST',body:fd})).json();
-    if(r.status==='exists'){if(confirm(r.message)){addLog('确认覆盖:'+r.filename,'warn');await uploadFile(true);}else addLog('取消上传','info');}
-    else if(r.status==='success'){addLog(r.message,'success');fi.value='';refreshUploadedChips();}else addLog(r.message,'error');
-    }catch(e){addLog('上传异常:'+e.message,'error');}
-}
-async function refreshUploadedChips(){try{const d=await(await fetch('/api/excel/files')).json(),c=document.getElementById('uploadedFiles');c.innerHTML='';Object.keys(d).forEach(f=>{c.innerHTML+=`<div class="file-chip"><i class="bi bi-file-earmark-excel-fill text-success"></i>${f}<span class="remove-chip" onclick="deleteFile('${f}')"><i class="bi bi-x-lg"></i></span></div>`;});}catch(e){}}
-async function deleteFile(fn){if(!confirm('确定删除 "'+fn+'" ?'))return;addLog('删除:'+fn+'...','warn');try{const r=await(await fetch('/api/excel/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:fn})})).json();addLog(r.message,r.status==='success'?'success':'error');if(r.status==='success')refreshUploadedChips();}catch(e){addLog('删除失败:'+e.message,'error');}}
-
-// === STEP 0: REF CONFIG ===
-function toggleRefConfig(){const b=document.getElementById('refConfigBody'),ch=document.getElementById('refChevron');b.classList.toggle('open');ch.style.transform=b.classList.contains('open')?'rotate(180deg)':'';}
-
-async function loadRefConfig(){
-    try{const c=await(await fetch('/api/excel/group_config')).json();
-    document.getElementById('refPathBenqi').value=c.ref_benqi||'';
-    document.getElementById('refPathTongqi').value=c.ref_tongqi||'';
-    document.getElementById('refDotBenqi').className='ref-status-dot '+(c.ref_benqi_exists?'ok':'err');
-    document.getElementById('refDotTongqi').className='ref-status-dot '+(c.ref_tongqi_exists?'ok':'err');
-    updateRefBadge(c);
-    }catch(e){console.error(e);}
-}
-
-function updateRefBadge(c){
-    const b=document.getElementById('refStatusBadge'),has=(c.ref_benqi||c.ref_tongqi),allOk=c.ref_benqi_exists&&c.ref_tongqi_exists,someOk=c.ref_benqi_exists||c.ref_tongqi_exists;
-    if(!has){b.textContent='未配置';b.className='badge bg-secondary bg-opacity-25 text-dark';}
-    else if(allOk){b.textContent='✓ 已就绪';b.className='badge bg-success bg-opacity-25 text-success';}
-    else if(someOk){b.textContent='部分可用';b.className='badge bg-warning bg-opacity-25 text-warning';}
-    else{b.textContent='文件不可达';b.className='badge bg-danger bg-opacity-25 text-danger';}
-}
-
-async function saveRefConfig(){
-    const st=document.getElementById('refSaveStatus');st.style.display='inline';st.textContent='保存中...';st.className='small ms-2 text-muted';
-    try{const r=await(await fetch('/api/excel/group_config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ref_benqi:document.getElementById('refPathBenqi').value,ref_tongqi:document.getElementById('refPathTongqi').value})})).json();
-    if(r.status==='success'){st.textContent='✓ 已保存';st.className='small ms-2 text-success';addLog('分组参照路径已保存','success');
-    if(r.files){document.getElementById('refDotBenqi').className='ref-status-dot '+(r.files.ref_benqi?.exists?'ok':'err');document.getElementById('refDotTongqi').className='ref-status-dot '+(r.files.ref_tongqi?.exists?'ok':'err');updateRefBadge({ref_benqi:r.files.ref_benqi?.path,ref_tongqi:r.files.ref_tongqi?.path,ref_benqi_exists:r.files.ref_benqi?.exists,ref_tongqi_exists:r.files.ref_tongqi?.exists});}
-    setTimeout(()=>{st.style.display='none';},2500);}else{st.textContent='保存失败';st.className='small ms-2 text-danger';}
-    }catch(e){st.textContent='网络错误';st.className='small ms-2 text-danger';}
-}
-
-async function testMapping(){
-    const rd=document.getElementById('mappingTestResult');rd.style.display='block';
-    rd.innerHTML='<div class="text-muted" style="font-size:13px;"><span class="spinner-dark me-2"></span>正在读取参照文件...</div>';
-    addLog('测试分组映射...','warn');
-    try{const result=await(await fetch('/api/excel/test_mapping',{method:'POST'})).json();
-    const s=result.stats||{}, qy=s['签约_total']||0, tf=s['退费_total']||0, total=s.total||0;
-    const logsHtml=result.logs.map(l=>{let c='text-muted';if(l.includes('[成功]')||l.includes('[完成]'))c='text-success';else if(l.includes('[错误]'))c='text-danger';else if(l.includes('[警告]')||l.includes('[跳过]'))c='text-warning';return '<div class="'+c+'" style="font-size:12px;line-height:1.7;">'+l+'</div>';}).join('');
-    const ok=total>0;
-    rd.innerHTML=`<div class="p-3 rounded" style="background:#F8F9FA;border:1px solid #E8E8E8;">
-        <div class="fw-bold mb-2" style="font-size:13px;color:${ok?'#2E7D32':'#F57F17'};"><i class="bi ${ok?'bi-check-circle-fill text-success':'bi-exclamation-triangle-fill text-warning'} me-1"></i>签约映射: ${qy} 条 | 退费映射: ${tf} 条 | 合计: ${total} 条</div>
-        <div style="max-height:140px;overflow-y:auto;">${logsHtml}</div></div>`;
-    result.logs.forEach(l=>addLog('[映射] '+l,l.includes('[错误]')?'error':'info'));
-    }catch(e){rd.innerHTML='<div class="text-danger" style="font-size:13px;">测试失败:'+e.message+'</div>';addLog('映射测试失败:'+e.message,'error');}
-}
-
-// === STEP 1: SPLIT CONFIG ===
-async function checkMappingStatus(){
-    const banner=document.getElementById('mappingStatusBanner'),text=document.getElementById('mappingStatusText');
-    banner.style.display='flex';banner.className='mapping-status-banner none mx-4 mt-4';text.innerHTML='<span class="spinner-dark me-1"></span>检查分组映射...';
-    try{const r=await(await fetch('/api/excel/test_mapping',{method:'POST'})).json();
-    const s=r.stats||{},qy=s['签约_total']||0,tf=s['退费_total']||0,total=s.total||0;
-    mappingStats=s;
-    if(total>0){banner.className='mapping-status-banner ready mx-4 mt-4';text.innerHTML=`<i class="bi bi-diagram-3 me-1"></i>签约映射: <strong>${qy}</strong> 条　退费映射: <strong>${tf}</strong> 条 — 请在下方为每个 Sheet 选择分组类别`;mappingReady=true;}
-    else{banner.className='mapping-status-banner empty mx-4 mt-4';text.innerHTML='<i class="bi bi-exclamation-triangle me-1"></i>未加载到分组映射，可返回上一步配置';mappingReady=false;}
-    }catch(e){banner.className='mapping-status-banner none mx-4 mt-4';text.textContent='映射检查失败';mappingReady=false;}
-}
-
-async function loadFiles(){
-    const tbody=document.getElementById('fileListBody');
-    tbody.innerHTML='<tr><td colspan="5"><div class="empty-state"><div class="spinner-border spinner-border-sm text-secondary"></div><p style="font-size:13px;margin-top:8px;">扫描中...</p></div></td></tr>';
-    try{const data=await(await fetch('/api/excel/files')).json();tbody.innerHTML='';
-    if(Object.keys(data).length===0){tbody.innerHTML='<tr><td colspan="5"><div class="empty-state"><i class="bi bi-folder2-open"></i><p style="font-size:13px;">RawData 为空</p></div></td></tr>';return;}
-    for(const [fn,sheets] of Object.entries(data)){
-        tbody.innerHTML+=`<tr class="file-group-header"><td colspan="5"><i class="bi bi-file-earmark-excel-fill text-success me-1"></i>${fn}</td></tr>`;
-        for(const [sn,info] of Object.entries(sheets)){
-            const opts=info.columns.map(c=>`<option value="${c}" ${c===info.suggested_col?'selected':''}>${c}</option>`).join('');
-            const dn=(fn.split('.')[0]+sn).substring(0,25);
-            tbody.innerHTML+=`<tr>
-                <td class="text-center"><input type="checkbox" class="form-check-input sheet-check" data-file="${fn}" data-origin="${sn}" data-h="${info.header_idx}" checked></td>
-                <td><span class="badge bg-light text-dark border fw-normal" style="font-size:11px;">${sn}</span></td>
-                <td><input type="text" class="input-cell custom-name" value="${dn}" placeholder="输出名称"></td>
-                <td><select class="form-select form-select-sm group-type-select">
-                    <option value="">不追加</option>
-                    <option value="签约">签约分组</option>
-                    <option value="退费">退费分组</option>
-                </select></td>
-                <td><select class="form-select form-select-sm split-col" style="font-size:12px;height:34px;">${opts}</select></td>
-            </tr>`;
-        }
+    function saveSmtpState(){
+        const s=document.getElementById('smtpS'), p=document.getElementById('smtpP'),
+              u=document.getElementById('smtpU'), w=document.getElementById('smtpW');
+        if(s) smtpCache.server = s.value;
+        if(p) smtpCache.port   = p.value;
+        if(u) smtpCache.user   = u.value;
+        if(w) smtpCache.password= w.value;
     }
-    addLog('文件列表已更新','success');
-    }catch(e){tbody.innerHTML='<tr><td colspan="5" class="text-danger p-3 small">加载失败:'+e.message+'</td></tr>';addLog('扫描失败:'+e.message,'error');}
-}
 
-async function executeSplit(){
-    const sel={},checked=document.querySelectorAll('.sheet-check:checked');
-    if(checked.length===0) return alert('请至少勾选一个 Sheet');
-    checked.forEach(cb=>{const f=cb.getAttribute('data-file'),s=cb.getAttribute('data-origin');if(!sel[f])sel[f]={};const row=cb.closest('tr');
-    sel[f][s]={
-        custom: row.querySelector('.custom-name').value,
-        col:    row.querySelector('.split-col').value,
-        h:      parseInt(cb.getAttribute('data-h')),
-        group_type: row.querySelector('.group-type-select').value
-    };});
-    const btn=document.getElementById('btnSplit'),orig=btn.innerHTML;btn.disabled=true;
-    btn.innerHTML='<span class="spinner-inline me-2"></span>拆分中...';addLog('开始拆分...','warn');
-    try{const result=await(await fetch('/api/excel/split',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({selection:sel})})).json();
-    addLog(result.message,result.status==='success'?'success':'error');
-    if(result.logs)result.logs.forEach(l=>addLog(' > '+l,'info'));
-    if(result.status==='success'){addLog('跳转邮件预览...','success');setTimeout(()=>goToStep(2),600);}
-    }catch(e){addLog('拆分异常:'+e.message,'error');}
-    btn.disabled=false;btn.innerHTML=orig;
-}
+    function restoreSmtpState(){
+        const s=document.getElementById('smtpS'), p=document.getElementById('smtpP'),
+              u=document.getElementById('smtpU'), w=document.getElementById('smtpW');
+        if(s) s.value = smtpCache.server;
+        if(p) p.value = smtpCache.port;
+        if(u) u.value = smtpCache.user;
+        if(w) w.value = smtpCache.password;
+    }
 
-// === STEP 2: PREVIEW ===
-async function loadPreview(){
-    const a=document.getElementById('previewArea');
-    a.innerHTML='<div class="empty-state"><div class="spinner-border spinner-border-sm text-secondary"></div><p style="font-size:13px;margin-top:8px;">匹配收件人...</p></div>';
-    try{originalDispatch=await(await fetch('/api/excel/preview')).json();
-    if(originalDispatch.length===0){a.innerHTML='<div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p style="font-size:13px;">未找到拆分文件</p></div>';return;}
-    let h='<table class="preview-table"><thead><tr><th style="width:15%">业务条线</th><th style="width:22%">附件</th><th>收件人 (点击编辑)</th></tr></thead><tbody>';
-    originalDispatch.forEach(i=>{const v=i.recipients.join(', ');h+=`<tr><td><span class="badge bg-secondary bg-opacity-25 text-dark border fw-normal">${i.line}</span></td><td class="text-muted">${i.file}</td><td><div class="d-flex align-items-center"><input type="text" class="input-email" value="${v}" data-line="${i.line}" onchange="handleRecipientChange(this)" placeholder="输入邮箱"><span class="save-indicator small ms-2 text-success" style="display:none;width:50px;flex-shrink:0;"></span></div></td></tr>`;});
-    h+='</tbody></table>';a.innerHTML=h;addLog('预览完毕,共'+originalDispatch.length+'项','success');
-    }catch(e){a.innerHTML='<div class="text-danger p-3 small">加载失败:'+e.message+'</div>';addLog('预览失败:'+e.message,'error');}
-}
-async function handleRecipientChange(inp){
-    const line=inp.getAttribute('data-line'),val=inp.value.trim(),ind=inp.nextElementSibling;
-    const list=val.split(/[;,，]/).map(e=>e.trim()).filter(e=>e);
-    ind.style.display='inline-block';ind.textContent='Saving...';ind.className='save-indicator small ms-2 text-muted';
-    try{const r=await(await fetch('/api/excel/save_recipient',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({line,recipients:list})})).json();
-    if(r.status==='success'){ind.textContent='✓ Saved';ind.className='save-indicator small ms-2 text-success';inp.classList.add('modified');const it=originalDispatch.find(i=>i.line===line);if(it)it.recipients=list;addLog('已保存['+line+']','info');setTimeout(()=>{ind.style.display='none';},2000);}
-    else{ind.textContent='Error';ind.className='save-indicator small ms-2 text-danger';}
-    }catch(e){ind.textContent='Error';ind.className='save-indicator small ms-2 text-danger';}
-}
+    // === STEPPER ===
+    function goToStep(t){
+        if(currentStep===0&&t===1){ if(!document.getElementById('syncMonth').value){alert('请先选择目标月份');document.getElementById('syncMonth').focus();return;} loadFiles();checkMappingStatus(); }
+        if(t===2) loadPreview();
+        // Save SMTP state when leaving step 3
+        if(currentStep===3) saveSmtpState();
+        if(t===3){ document.getElementById('summaryMonth').textContent=document.getElementById('syncMonth').value||'—'; document.getElementById('summaryCount').textContent=originalDispatch.length; }
+        document.querySelectorAll('.step-panel').forEach(p=>p.classList.remove('active'));
+        document.getElementById('panel-'+t).classList.add('active');
+        const nodes=document.querySelectorAll('.step-node');
+        nodes.forEach((n,i)=>{n.classList.remove('active','done');if(i<t)n.classList.add('done');if(i===t)n.classList.add('active');});
+        document.getElementById('stepperLine').style.width=(t/(nodes.length-1))*70+'%';
+        currentStep=t; window.scrollTo({top:0,behavior:'smooth'});
+        // Restore SMTP state when entering step 3 (deferred to ensure DOM is visible)
+        if(t===3) requestAnimationFrame(restoreSmtpState);
+    }
 
-// === STEP 3: SEND ===
-async function executeDistribute(){
-    const ym=document.getElementById('syncMonth').value;if(!ym)return alert('请先选择目标月份');
-    if(!confirm('确认发送'+originalDispatch.length+'封邮件？\n月份:'+ym))return;
-    const smtp={server:document.getElementById('smtpS').value,port:document.getElementById('smtpP').value,user:document.getElementById('smtpU').value,password:document.getElementById('smtpW').value};
-    const fl=originalDispatch.map(i=>({line:i.line,file:i.file,recipients:i.recipients}));
-    const btn=document.getElementById('btnSend'),orig=btn.innerHTML;btn.disabled=true;btn.innerHTML='<span class="spinner-inline me-2"></span>发送中...';addLog('连接SMTP('+ym+')...','warn');
-    try{const result=await(await fetch('/api/excel/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({smtp_config:smtp,dispatch_list:fl,yyyymm:ym})})).json();
-    if(result.error){addLog(result.error,'error');btn.disabled=false;btn.innerHTML=orig;}
-    else{addLog('完毕! 成功:'+result.success.length+', 失败:'+result.failed.length,'success');showFinalResult(result);}
-    }catch(e){addLog('发送失败:'+e.message,'error');btn.disabled=false;btn.innerHTML=orig;}
-}
-function showFinalResult(r){
-    const d=document.getElementById('sendResultDetail');let h='';
-    if(r.success.length>0)h+='<div class="p-3 mb-3 rounded" style="background:#E8F5E9;border:1px solid #C8E6C9;"><div class="fw-bold text-success mb-1"><i class="bi bi-check-circle me-1"></i>成功('+r.success.length+')</div><div class="text-muted" style="font-size:13px;">'+r.success.join('、')+'</div></div>';
-    if(r.failed.length>0){const fl=r.failed.map(f=>f.line+':'+f.reason).join('<br>');h+='<div class="p-3 mb-3 rounded" style="background:#FFEBEE;border:1px solid #FFCDD2;"><div class="fw-bold text-danger mb-1"><i class="bi bi-x-circle me-1"></i>失败('+r.failed.length+')</div><div class="text-muted" style="font-size:13px;">'+fl+'</div></div>';}
-    d.innerHTML=h;document.getElementById('successSummaryText').textContent='成功'+r.success.length+'封, 失败'+r.failed.length+'封';goToStep(4);
-}
+    // === SKIP TO SEND (from split page) ===
+    async function skipToSend(){
+        if(!document.getElementById('syncMonth').value){alert('请先选择目标月份');return;}
+        addLog('跳过拆分，直接加载邮件预览...','warn');
+        goToStep(2);
+    }
 
-// === INIT ===
-document.addEventListener('DOMContentLoaded',()=>{refreshUploadedChips();loadRefConfig();addLog('系统初始化完成','info');});
+    // === LOG ===
+    function addLog(m,type='info'){const term=document.getElementById('terminal'),d=document.createElement('div');d.className='mb-1 log-'+type;d.innerHTML=`<span class="log-time">[${new Date().toTimeString().split(' ')[0]}]</span> ${m}`;term.appendChild(d);term.scrollTop=term.scrollHeight;logCount++;const b=document.getElementById('logBadge');b.textContent=logCount;b.style.display='inline-block';}
+    function toggleLog(){document.getElementById('terminal').classList.toggle('open');document.querySelector('.log-toggle').classList.toggle('open');}
+
+    // === STEP 0: SYNC & UPLOAD ===
+    async function triggerSync(){
+        const d=document.getElementById('syncMonth').value; if(!d) return alert('请选择月份');
+        if(!confirm('同步前会清空 RawData 目录，确认继续？')) return;
+        const btn=document.getElementById('btnSync'),o=btn.innerHTML; btn.disabled=true; btn.innerHTML='<span class="spinner-inline me-2"></span>同步中...';
+        addLog('清空 RawData 并触发 N8N ('+d+')...','warn');
+        try{const r=await(await fetch('/api/excel/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({date:d})})).json();addLog(r.message,r.status==='success'?'success':'error');if(r.status==='success')refreshUploadedChips();}catch(e){addLog('同步失败:'+e.message,'error');}
+        btn.disabled=false;btn.innerHTML=o;
+    }
+    function handleDrop(e){e.preventDefault();e.currentTarget.classList.remove('dragover');if(e.dataTransfer.files.length>0){document.getElementById('excelUploader').files=e.dataTransfer.files;uploadFile();}}
+    async function uploadFile(force=false){
+        const fi=document.getElementById('excelUploader'),f=fi.files[0];if(!f)return;
+        const fd=new FormData();fd.append('file',f);fd.append('force',force);if(!force)addLog('上传:'+f.name+'...','warn');
+        try{const r=await(await fetch('/api/excel/upload',{method:'POST',body:fd})).json();
+        if(r.status==='exists'){if(confirm(r.message)){addLog('确认覆盖:'+r.filename,'warn');await uploadFile(true);}else addLog('取消上传','info');}
+        else if(r.status==='success'){addLog(r.message,'success');fi.value='';refreshUploadedChips();}else addLog(r.message,'error');
+        }catch(e){addLog('上传异常:'+e.message,'error');}
+    }
+    async function refreshUploadedChips(){try{const d=await(await fetch('/api/excel/files')).json(),c=document.getElementById('uploadedFiles');c.innerHTML='';Object.keys(d).forEach(f=>{c.innerHTML+=`<div class="file-chip"><i class="bi bi-file-earmark-excel-fill text-success"></i>${f}<span class="remove-chip" onclick="deleteFile('${f}')"><i class="bi bi-x-lg"></i></span></div>`;});}catch(e){}}
+    async function deleteFile(fn){if(!confirm('确定删除 "'+fn+'" ?'))return;addLog('删除:'+fn+'...','warn');try{const r=await(await fetch('/api/excel/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:fn})})).json();addLog(r.message,r.status==='success'?'success':'error');if(r.status==='success')refreshUploadedChips();}catch(e){addLog('删除失败:'+e.message,'error');}}
+
+    // === STEP 0: REF CONFIG ===
+    function toggleRefConfig(){const b=document.getElementById('refConfigBody'),ch=document.getElementById('refChevron');b.classList.toggle('open');ch.style.transform=b.classList.contains('open')?'rotate(180deg)':'';}
+
+    async function loadRefConfig(){
+        try{const c=await(await fetch('/api/excel/group_config')).json();
+        document.getElementById('refPathBenqi').value=c.ref_benqi||'';
+        document.getElementById('refPathTongqi').value=c.ref_tongqi||'';
+        document.getElementById('refDotBenqi').className='ref-status-dot '+(c.ref_benqi_exists?'ok':'err');
+        document.getElementById('refDotTongqi').className='ref-status-dot '+(c.ref_tongqi_exists?'ok':'err');
+        updateRefBadge(c);
+        }catch(e){console.error(e);}
+    }
+
+    function updateRefBadge(c){
+        const b=document.getElementById('refStatusBadge'),has=(c.ref_benqi||c.ref_tongqi),allOk=c.ref_benqi_exists&&c.ref_tongqi_exists,someOk=c.ref_benqi_exists||c.ref_tongqi_exists;
+        if(!has){b.textContent='未配置';b.className='badge bg-secondary bg-opacity-25 text-dark';}
+        else if(allOk){b.textContent='✓ 已就绪';b.className='badge bg-success bg-opacity-25 text-success';}
+        else if(someOk){b.textContent='部分可用';b.className='badge bg-warning bg-opacity-25 text-warning';}
+        else{b.textContent='文件不可达';b.className='badge bg-danger bg-opacity-25 text-danger';}
+    }
+
+    async function saveRefConfig(){
+        const st=document.getElementById('refSaveStatus');st.style.display='inline';st.textContent='保存中...';st.className='small ms-2 text-muted';
+        try{const r=await(await fetch('/api/excel/group_config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ref_benqi:document.getElementById('refPathBenqi').value,ref_tongqi:document.getElementById('refPathTongqi').value})})).json();
+        if(r.status==='success'){st.textContent='✓ 已保存';st.className='small ms-2 text-success';addLog('分组参照路径已保存','success');
+        if(r.files){document.getElementById('refDotBenqi').className='ref-status-dot '+(r.files.ref_benqi?.exists?'ok':'err');document.getElementById('refDotTongqi').className='ref-status-dot '+(r.files.ref_tongqi?.exists?'ok':'err');updateRefBadge({ref_benqi:r.files.ref_benqi?.path,ref_tongqi:r.files.ref_tongqi?.path,ref_benqi_exists:r.files.ref_benqi?.exists,ref_tongqi_exists:r.files.ref_tongqi?.exists});}
+        setTimeout(()=>{st.style.display='none';},2500);}else{st.textContent='保存失败';st.className='small ms-2 text-danger';}
+        }catch(e){st.textContent='网络错误';st.className='small ms-2 text-danger';}
+    }
+
+    async function testMapping(){
+        const rd=document.getElementById('mappingTestResult');rd.style.display='block';
+        rd.innerHTML='<div class="text-muted" style="font-size:13px;"><span class="spinner-dark me-2"></span>正在读取参照文件...</div>';
+        addLog('测试分组映射...','warn');
+        try{const result=await(await fetch('/api/excel/test_mapping',{method:'POST'})).json();
+        const s=result.stats||{}, qy=s['签约_total']||0, tf=s['退费_total']||0, total=s.total||0;
+        const logsHtml=result.logs.map(l=>{let c='text-muted';if(l.includes('[成功]')||l.includes('[完成]'))c='text-success';else if(l.includes('[错误]'))c='text-danger';else if(l.includes('[警告]')||l.includes('[跳过]'))c='text-warning';return '<div class="'+c+'" style="font-size:12px;line-height:1.7;">'+l+'</div>';}).join('');
+        const ok=total>0;
+        rd.innerHTML=`<div class="p-3 rounded" style="background:#F8F9FA;border:1px solid #E8E8E8;">
+            <div class="fw-bold mb-2" style="font-size:13px;color:${ok?'#2E7D32':'#F57F17'};"><i class="bi ${ok?'bi-check-circle-fill text-success':'bi-exclamation-triangle-fill text-warning'} me-1"></i>签约映射: ${qy} 条 | 退费映射: ${tf} 条 | 合计: ${total} 条</div>
+            <div style="max-height:140px;overflow-y:auto;">${logsHtml}</div></div>`;
+        result.logs.forEach(l=>addLog('[映射] '+l,l.includes('[错误]')?'error':'info'));
+        }catch(e){rd.innerHTML='<div class="text-danger" style="font-size:13px;">测试失败:'+e.message+'</div>';addLog('映射测试失败:'+e.message,'error');}
+    }
+
+    // === STEP 1: SPLIT CONFIG ===
+    async function checkMappingStatus(){
+        const banner=document.getElementById('mappingStatusBanner'),text=document.getElementById('mappingStatusText');
+        banner.style.display='flex';banner.className='mapping-status-banner none mx-4 mt-4';text.innerHTML='<span class="spinner-dark me-1"></span>检查分组映射...';
+        try{const r=await(await fetch('/api/excel/test_mapping',{method:'POST'})).json();
+        const s=r.stats||{},qy=s['签约_total']||0,tf=s['退费_total']||0,total=s.total||0;
+        mappingStats=s;
+        if(total>0){banner.className='mapping-status-banner ready mx-4 mt-4';text.innerHTML=`<i class="bi bi-diagram-3 me-1"></i>签约映射: <strong>${qy}</strong> 条　退费映射: <strong>${tf}</strong> 条 — 请在下方为每个 Sheet 选择分组类别`;mappingReady=true;}
+        else{banner.className='mapping-status-banner empty mx-4 mt-4';text.innerHTML='<i class="bi bi-exclamation-triangle me-1"></i>未加载到分组映射，可返回上一步配置';mappingReady=false;}
+        }catch(e){banner.className='mapping-status-banner none mx-4 mt-4';text.textContent='映射检查失败';mappingReady=false;}
+    }
+
+    async function loadFiles(){
+        const tbody=document.getElementById('fileListBody');
+        tbody.innerHTML='<tr><td colspan="5"><div class="empty-state"><div class="spinner-border spinner-border-sm text-secondary"></div><p style="font-size:13px;margin-top:8px;">扫描中...</p></div></td></tr>';
+        try{const data=await(await fetch('/api/excel/files')).json();tbody.innerHTML='';
+        if(Object.keys(data).length===0){tbody.innerHTML='<tr><td colspan="5"><div class="empty-state"><i class="bi bi-folder2-open"></i><p style="font-size:13px;">RawData 为空</p></div></td></tr>';return;}
+        for(const [fn,sheets] of Object.entries(data)){
+            tbody.innerHTML+=`<tr class="file-group-header"><td colspan="5"><i class="bi bi-file-earmark-excel-fill text-success me-1"></i>${fn}</td></tr>`;
+            for(const [sn,info] of Object.entries(sheets)){
+                const opts=info.columns.map(c=>`<option value="${c}" ${c===info.suggested_col?'selected':''}>${c}</option>`).join('');
+                const dn=(fn.split('.')[0]+sn).substring(0,25);
+                tbody.innerHTML+=`<tr>
+                    <td class="text-center"><input type="checkbox" class="form-check-input sheet-check" data-file="${fn}" data-origin="${sn}" data-h="${info.header_idx}" checked></td>
+                    <td><span class="badge bg-light text-dark border fw-normal" style="font-size:11px;">${sn}</span></td>
+                    <td><input type="text" class="input-cell custom-name" value="${dn}" placeholder="输出名称"></td>
+                    <td><select class="form-select form-select-sm group-type-select">
+                        <option value="">不追加</option>
+                        <option value="签约">签约分组</option>
+                        <option value="退费">退费分组</option>
+                    </select></td>
+                    <td><select class="form-select form-select-sm split-col" style="font-size:12px;height:34px;">${opts}</select></td>
+                </tr>`;
+            }
+        }
+        addLog('文件列表已更新','success');
+        }catch(e){tbody.innerHTML='<tr><td colspan="5" class="text-danger p-3 small">加载失败:'+e.message+'</td></tr>';addLog('扫描失败:'+e.message,'error');}
+    }
+
+    async function executeSplit(){
+        const sel={},checked=document.querySelectorAll('.sheet-check:checked');
+        if(checked.length===0) return alert('请至少勾选一个 Sheet');
+        checked.forEach(cb=>{const f=cb.getAttribute('data-file'),s=cb.getAttribute('data-origin');if(!sel[f])sel[f]={};const row=cb.closest('tr');
+        sel[f][s]={
+            custom: row.querySelector('.custom-name').value,
+            col:    row.querySelector('.split-col').value,
+            h:      parseInt(cb.getAttribute('data-h')),
+            group_type: row.querySelector('.group-type-select').value
+        };});
+        const btn=document.getElementById('btnSplit'),orig=btn.innerHTML;btn.disabled=true;
+        btn.innerHTML='<span class="spinner-inline me-2"></span>拆分中...';addLog('开始拆分...','warn');
+        try{const result=await(await fetch('/api/excel/split',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({selection:sel})})).json();
+        addLog(result.message,result.status==='success'?'success':'error');
+        if(result.logs)result.logs.forEach(l=>addLog(' > '+l,'info'));
+        if(result.status==='success'){addLog('跳转邮件预览...','success');setTimeout(()=>goToStep(2),600);}
+        }catch(e){addLog('拆分异常:'+e.message,'error');}
+        btn.disabled=false;btn.innerHTML=orig;
+    }
+
+    // === STEP 2: PREVIEW ===
+    async function loadPreview(){
+        const a=document.getElementById('previewArea');
+        a.innerHTML='<div class="empty-state"><div class="spinner-border spinner-border-sm text-secondary"></div><p style="font-size:13px;margin-top:8px;">匹配收件人...</p></div>';
+        try{originalDispatch=await(await fetch('/api/excel/preview')).json();
+        if(originalDispatch.length===0){a.innerHTML='<div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p style="font-size:13px;">未找到拆分文件</p></div>';return;}
+        let h='<table class="preview-table"><thead><tr><th style="width:15%">业务条线</th><th style="width:22%">附件</th><th>收件人 (点击编辑)</th></tr></thead><tbody>';
+        originalDispatch.forEach(i=>{const v=i.recipients.join(', ');h+=`<tr><td><span class="badge bg-secondary bg-opacity-25 text-dark border fw-normal">${i.line}</span></td><td class="text-muted">${i.file}</td><td><div class="d-flex align-items-center"><input type="text" class="input-email" value="${v}" data-line="${i.line}" onchange="handleRecipientChange(this)" placeholder="输入邮箱"><span class="save-indicator small ms-2 text-success" style="display:none;width:50px;flex-shrink:0;"></span></div></td></tr>`;});
+        h+='</tbody></table>';a.innerHTML=h;addLog('预览完毕,共'+originalDispatch.length+'项','success');
+        }catch(e){a.innerHTML='<div class="text-danger p-3 small">加载失败:'+e.message+'</div>';addLog('预览失败:'+e.message,'error');}
+    }
+    async function handleRecipientChange(inp){
+        const line=inp.getAttribute('data-line'),val=inp.value.trim(),ind=inp.nextElementSibling;
+        const list=val.split(/[;,，]/).map(e=>e.trim()).filter(e=>e);
+        ind.style.display='inline-block';ind.textContent='Saving...';ind.className='save-indicator small ms-2 text-muted';
+        try{const r=await(await fetch('/api/excel/save_recipient',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({line,recipients:list})})).json();
+        if(r.status==='success'){ind.textContent='✓ Saved';ind.className='save-indicator small ms-2 text-success';inp.classList.add('modified');const it=originalDispatch.find(i=>i.line===line);if(it)it.recipients=list;addLog('已保存['+line+']','info');setTimeout(()=>{ind.style.display='none';},2000);}
+        else{ind.textContent='Error';ind.className='save-indicator small ms-2 text-danger';}
+        }catch(e){ind.textContent='Error';ind.className='save-indicator small ms-2 text-danger';}
+    }
+
+    // === STEP 3: SEND ===
+    async function executeDistribute(){
+        const ym=document.getElementById('syncMonth').value;if(!ym)return alert('请先选择目标月份');
+        if(!confirm('确认发送'+originalDispatch.length+'封邮件？\n月份:'+ym))return;
+        const smtp={server:document.getElementById('smtpS').value,port:document.getElementById('smtpP').value,user:document.getElementById('smtpU').value,password:document.getElementById('smtpW').value};
+        const fl=originalDispatch.map(i=>({line:i.line,file:i.file,recipients:i.recipients}));
+        const btn=document.getElementById('btnSend'),orig=btn.innerHTML;btn.disabled=true;btn.innerHTML='<span class="spinner-inline me-2"></span>发送中...';addLog('连接SMTP('+ym+')...','warn');
+        try{const result=await(await fetch('/api/excel/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({smtp_config:smtp,dispatch_list:fl,yyyymm:ym})})).json();
+        if(result.error){addLog(result.error,'error');btn.disabled=false;btn.innerHTML=orig;}
+        else{addLog('完毕! 成功:'+result.success.length+', 失败:'+result.failed.length,'success');showFinalResult(result);}
+        }catch(e){addLog('发送失败:'+e.message,'error');btn.disabled=false;btn.innerHTML=orig;}
+    }
+    function showFinalResult(r){
+        const d=document.getElementById('sendResultDetail');let h='';
+        if(r.success.length>0)h+='<div class="p-3 mb-3 rounded" style="background:#E8F5E9;border:1px solid #C8E6C9;"><div class="fw-bold text-success mb-1"><i class="bi bi-check-circle me-1"></i>成功('+r.success.length+')</div><div class="text-muted" style="font-size:13px;">'+r.success.join('、')+'</div></div>';
+        if(r.failed.length>0){const fl=r.failed.map(f=>f.line+':'+f.reason).join('<br>');h+='<div class="p-3 mb-3 rounded" style="background:#FFEBEE;border:1px solid #FFCDD2;"><div class="fw-bold text-danger mb-1"><i class="bi bi-x-circle me-1"></i>失败('+r.failed.length+')</div><div class="text-muted" style="font-size:13px;">'+fl+'</div></div>';}
+        d.innerHTML=h;document.getElementById('successSummaryText').textContent='成功'+r.success.length+'封, 失败'+r.failed.length+'封';goToStep(4);
+    }
+
+    // === INIT ===
+    document.addEventListener('DOMContentLoaded',()=>{
+        refreshUploadedChips();loadRefConfig();addLog('系统初始化完成','info');
+        // Guard SMTP fields against browser autocomplete (delayed to beat browser fill timing)
+        setTimeout(restoreSmtpState, 200);
+        setTimeout(restoreSmtpState, 800);
+    });
 </script>
 {% endblock %}
