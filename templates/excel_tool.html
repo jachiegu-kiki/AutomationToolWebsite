@@ -66,7 +66,16 @@
     .config-table { width:100%;border-collapse:collapse; }
     .config-table thead th { font-size:11px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:0.3px;padding:10px 12px;border-bottom:2px solid #F0F0F0;background:#FAFBFC;white-space:nowrap; }
     .config-table tbody td { padding:8px 12px;border-bottom:1px solid #F5F5F5;vertical-align:middle;font-size:13px; }
-    .config-table .file-group-header td { background:#F8F9FA;font-weight:700;font-size:13px;color:var(--xdf-green);padding:8px 12px; }
+    .config-table .file-group-header td { background:#F8F9FA;font-weight:700;font-size:13px;color:var(--xdf-green);padding:0; }
+    .file-group-inner { display:flex;align-items:center;padding:10px 12px;gap:0; }
+    .file-group-inner .sa-checkbox-cell { width:36px;flex-shrink:0;display:flex;align-items:center;justify-content:center; }
+    .file-group-inner .sa-checkbox-cell .form-check-input { margin:0;cursor:pointer;width:15px;height:15px; }
+    .file-group-inner .sa-file-info { flex:1;display:flex;align-items:center;gap:6px;min-width:0; }
+    .file-group-inner .sa-file-info .sa-filename { white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+    .sa-count { font-size:11px;font-weight:500;color:#999;margin-left:auto;flex-shrink:0;padding-left:12px;transition:color 0.2s; }
+    .sa-count.all-on { color:var(--xdf-green); }
+    .sa-count.partial { color:var(--xdf-orange); }
+    .sa-count.all-off { color:#CCC; }
     .input-cell { border:1px solid transparent;background:transparent;padding:5px 8px;border-radius:5px;width:100%;font-size:13px;transition:all 0.2s; }
     .input-cell:hover { background:#F8F8F8; }
     .input-cell:focus { background:#FFF;border-color:var(--xdf-orange);outline:none;box-shadow:0 0 0 2px rgba(243,152,0,0.1); }
@@ -442,13 +451,48 @@
         }catch(e){banner.className='mapping-status-banner none mx-4 mt-4';text.textContent='映射检查失败';mappingReady=false;}
     }
 
+    // === SELECT-ALL PER FILE ===
+    function toggleSelectAll(masterCb){
+        const file=masterCb.getAttribute('data-file');
+        const checks=document.querySelectorAll(`.sheet-check[data-file="${file}"]`);
+        checks.forEach(c=>c.checked=masterCb.checked);
+        masterCb.indeterminate=false;
+        updateSelectCount(file);
+    }
+    function syncSelectAll(file){
+        const checks=[...document.querySelectorAll(`.sheet-check[data-file="${file}"]`)];
+        if(checks.length===0) return;
+        const master=document.querySelector(`.select-all-check[data-file="${file}"]`);
+        if(!master) return;
+        const total=checks.length, checked=checks.filter(c=>c.checked).length;
+        master.checked=checked===total;
+        master.indeterminate=checked>0&&checked<total;
+        updateSelectCount(file);
+    }
+    function updateSelectCount(file){
+        const checks=[...document.querySelectorAll(`.sheet-check[data-file="${file}"]`)];
+        const total=checks.length, checked=checks.filter(c=>c.checked).length;
+        const countEl=document.querySelector(`.sa-count[data-file="${file}"]`);
+        if(!countEl) return;
+        countEl.textContent=`${checked}/${total} 已选`;
+        countEl.className='sa-count '+(checked===total?'all-on':checked===0?'all-off':'partial');
+    }
+    // Delegate click on individual sheet checkboxes
+    document.addEventListener('change',e=>{
+        if(e.target.classList.contains('sheet-check')){
+            syncSelectAll(e.target.getAttribute('data-file'));
+        }
+    });
+
     async function loadFiles(){
         const tbody=document.getElementById('fileListBody');
         tbody.innerHTML='<tr><td colspan="5"><div class="empty-state"><div class="spinner-border spinner-border-sm text-secondary"></div><p style="font-size:13px;margin-top:8px;">扫描中...</p></div></td></tr>';
         try{const data=await(await fetch('/api/excel/files')).json();tbody.innerHTML='';
         if(Object.keys(data).length===0){tbody.innerHTML='<tr><td colspan="5"><div class="empty-state"><i class="bi bi-folder2-open"></i><p style="font-size:13px;">RawData 为空</p></div></td></tr>';return;}
         for(const [fn,sheets] of Object.entries(data)){
-            tbody.innerHTML+=`<tr class="file-group-header"><td colspan="5"><i class="bi bi-file-earmark-excel-fill text-success me-1"></i>${fn}</td></tr>`;
+            const safeId=fn.replace(/[^a-zA-Z0-9]/g,'_');
+            const sheetCount=Object.keys(sheets).length;
+            tbody.innerHTML+=`<tr class="file-group-header"><td colspan="5"><div class="file-group-inner"><div class="sa-checkbox-cell"><input type="checkbox" class="form-check-input select-all-check" data-file="${fn}" id="sa_${safeId}" checked onchange="toggleSelectAll(this)"></div><div class="sa-file-info"><i class="bi bi-file-earmark-excel-fill text-success"></i><span class="sa-filename">${fn}</span></div><span class="sa-count all-on" data-file="${fn}" id="saCount_${safeId}">${sheetCount}/${sheetCount} 已选</span></div></td></tr>`;
             for(const [sn,info] of Object.entries(sheets)){
                 const opts=info.columns.map(c=>`<option value="${c}" ${c===info.suggested_col?'selected':''}>${c}</option>`).join('');
                 const dn=(fn.split('.')[0]+sn).substring(0,25);
@@ -466,6 +510,8 @@
             }
         }
         addLog('文件列表已更新','success');
+        // Sync all select-all checkbox states
+        document.querySelectorAll('.select-all-check').forEach(cb=>syncSelectAll(cb.getAttribute('data-file')));
         }catch(e){tbody.innerHTML='<tr><td colspan="5" class="text-danger p-3 small">加载失败:'+e.message+'</td></tr>';addLog('扫描失败:'+e.message,'error');}
     }
 
